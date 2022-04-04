@@ -1,0 +1,142 @@
+<muclient>
+<plugin
+   name="Nok3_Alias_Manager"
+   author="Nokfah"
+   id="bf7791205b6a0faaaf5b07ce"
+   language="Lua"
+   purpose=""   
+   save_state="y"
+   version="1.0"
+   >
+   <description>
+<![CDATA[
+Alias Manager
+-------------------------------
+am <alias> <command>
+am remove <alias>
+am list
+]]>
+   </description>
+</plugin>
+
+<aliases>
+   <alias
+      regexp="y" match="^am (?<alias>[\d\w]*) (?<command>.*)$"
+      enabled="y" script="Add" sequence="200"
+   ></alias>
+
+   <alias
+      regexp="y" match="^am remove (?<alias>[\d\w]*)$"
+      enabled="y" script="Remove" sequence="100"
+   ></alias>
+
+   <alias
+      regexp="y" match="^am list$"
+      enabled="y" script="List" sequence="100"
+   ></alias>
+
+   <alias
+      regexp="y" match="^am help$"
+      enabled="y" script="Help" sequence="100"
+   ></alias>
+</aliases>
+
+<script>
+<![CDATA[
+   require "serialize"
+
+	local aliases = {}
+   if (GetVariable("aliases") ~= nil) then         
+      luastmt = "obj = " .. GetVariable("aliases")
+      assert (loadstring (luastmt or "")) ()    
+      aliases = obj
+   end 
+	
+	function OnPluginInstall()
+      Help()
+   
+
+      local flags = alias_flag.Enabled + alias_flag.RegularExpression
+      for alias, command in pairs(aliases) do         
+         AddAlias("am_" .. alias, "^" .. alias .. "$", "", flags, "ExecuteAlias")
+      end
+   end
+
+   function Help()
+      ColourNote("orange", "black", GetPluginInfo(GetPluginID (), 3))
+   end   
+
+   function Add(name, line, wildcards)
+      aliases[wildcards[1]] = wildcards[2]
+
+      ColourNote("orange", "", "Alias ", 
+         "cyan", "", wildcards[1], 
+         "orange", "", " set to ",
+         "cyan", "", wildcards[2])
+
+      local flags = alias_flag.Enabled + alias_flag.RegularExpression
+      AddAlias("am_" .. wildcards[1], "^" .. wildcards[1] .. "$", "", flags, "ExecuteAlias")
+
+      Save()
+   end
+
+   function Remove(name, line, wildcards)
+      aliases[wildcards[1]] = nil
+
+      ColourNote("orange", "", "Alias ", 
+         "cyan", "", wildcards[1], 
+         "red", "", " removed")
+
+      DeleteAlias("am_" .. wildcards[1])
+
+      Save()
+   end
+
+   function Save()
+      SetVariable("aliases", serialize.save_simple(aliases))
+      ColourNote("orange", "", "Aliases Saved")
+   end
+
+   function ExecuteAlias(name, line, wildcards)
+      local command = aliases[line]
+
+      for subStr in string.gmatch(command, "([^;]+)") do        
+         Execute(subStr)     
+       end
+   end
+
+   function List()
+      ColourNote("orange", "", "          Alias | Command")
+      ColourNote("orange", "", "----------------------------------------------------------------------------------")
+      for alias, command in spairs(aliases) do
+         ColourNote("orange", "", string.format("%15s", alias), "dimgray", "", " | ", "orange", "", command)
+      end
+   end
+
+
+   function spairs(t, order)
+      -- collect the keys
+      local keys = {}
+      for k in pairs(t) do keys[#keys+1] = k end
+
+      -- if order function given, sort by it by passing the table and keys a, b,
+      -- otherwise just sort the keys 
+      if order then
+         table.sort(keys, function(a,b) return order(t, a, b) end)
+      else
+         table.sort(keys)
+      end
+
+      -- return the iterator function
+      local i = 0
+      return function()
+         i = i + 1
+         if keys[i] then
+            return keys[i], t[keys[i]]
+         end
+      end
+   end
+]]>
+</script>
+
+</muclient>

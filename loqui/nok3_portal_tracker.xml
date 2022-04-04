@@ -1,0 +1,227 @@
+<muclient>
+	<plugin
+		name="Nok3_Portal_Tracker"
+		author="Nokfah"
+		id="b5b534a09df80b4093cebbfd"
+		language="Lua"
+		save_state="y"
+		purpose="Tracks portal uses and xrt times"		
+	>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>		
+
+	<aliases>
+		<alias
+			name="xrt_start"
+			enabled="y"
+			match="^xrt (.+)$"
+			regexp="y"
+			send_to="12"
+			script="xrt_start"
+		>
+		</alias>
+		
+		<alias
+			name="xrt_show"
+			enabled="y"
+			match="^ptrack show xrt( .+)?$"
+			regexp="y"
+			send_to="12"
+			script="xrt_show"
+		>
+		</alias>
+		
+		<alias
+			name="xrt_clear"
+			enabled="y"
+			match="^ptrack clear xrt( .+)?$"
+			regexp="y"
+			send_to="12"
+			script="xrt_clear"
+		>
+		</alias>
+		
+		<alias
+			name="portal_use"
+			enabled="y"
+			match="^ptuse (.+)$"
+			regexp="y"
+			sequence="200"
+			send_to="12"
+			script="portal_use"
+		>
+		</alias>		
+
+		<alias
+			name="portal_show"
+			enabled="y"
+			match="^ptrack show portal( .+)?$"
+			regexp="y"
+			send_to="12"
+			script="portal_show"
+		>
+		</alias>	
+		
+		<alias
+			name="portal_clear"
+			enabled="y"
+			match="^ptrack clear portal( .+)?$"
+			regexp="y"
+			send_to="12"
+			script="portal_clear"
+		>
+		</alias>		
+	</aliases>
+				
+	<script>
+	<![CDATA[	
+		require "serialize"
+	
+		local currentArea = ""
+		local startTimer = false
+		local calculateTime = false		
+		local startTime
+		
+		local xrtTimes = {}		
+		if (GetVariable("ptrack_xrtTimes") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("ptrack_xrtTimes")
+			assert (loadstring (luastmt or "")) ()		
+			xrtTimes = obj
+		end	
+		
+		local portalUses = {}
+		if (GetVariable("ptrack_PortalUses") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("ptrack_PortalUses")
+			assert (loadstring (luastmt or "")) ()		
+			portalUses = obj
+		end		
+	
+		function OnPluginBroadcast (msg, id, name, text)
+		   -- Look for GMCP handler.
+		   if (id == '3e7dedbe37e44942dd46d264') then
+			  if (text == "room.info") then
+				 res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+				 luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				 assert (loadstring (luastmt or "")) ()								
+				
+				-- Update the area
+				if (currentArea ~= gmcpdata.zone) then
+					currentArea = gmcpdata.zone													
+				end	
+				
+				-- Stall the timer each move
+				if (IsTimer("done_moving") == error_code.eOK) then
+					ResetTimer("done_moving")
+				end
+				
+				if (timeRunTo) then
+					timeRunTo = false
+					calculateTime = true					
+					startTime = os.clock()
+					
+					-- Create a timer for when we are done moving
+					if (IsTimer("done_moving") ~= error_code.eOK) then
+						AddTimer("done_moving", 0, 0, .5, "", timer_flag.Enabled + timer_flag.OneShot, "done_moving")
+					end
+				end																
+			  end
+		   end		   
+		end -- onpluginbroadcast
+		
+		function portal_use(name, line, wildcards)
+			ColourNote("orange", "black", "portal use: " .. wildcards[1])
+			portalUses[wildcards[1]] = (portalUses[wildcards[1]] or 0) + 1
+			SetVariable("ptrack_PortalUses", serialize.save_simple(portalUses))
+		end
+		
+		function portal_clear(name, line, wildcards)
+			portalUses = {}
+			SetVariable("ptrack_PortalUses", serialize.save_simple(portalUses))
+		end
+		
+		function portal_show(name, line, wildcards)
+			if (GetVariable("ptrack_PortalUses") == nil) then
+				ColourNote("orange", "black", "No portal uses logged.")
+			else
+				for portal, uses in spairs(portalUses, function(t,a,b) return tonumber(t[a]) > tonumber(t[b]) end) do
+					ColourNote("orange", "black", portal .. ": " .. uses)
+				end
+			end
+		end
+		
+		function xrt_show(name, line, wildcards)			
+			if (GetVariable("ptrack_xrtTimes") == nil) then
+				ColourNote("orange", "black", "No xrt times logged.")
+			else
+				for area, info in spairs(xrtTimes, function(t,a,b) return tonumber(t[a]["avgTime"]) > tonumber(t[b]["avgTime"]) end) do
+					ColourNote("orange", "black", area .. ": " .. info.avgTime)
+				end
+			end
+		end
+		
+		function xrt_clear(name, line, wildcards)
+			xrtTimes = {}
+			SetVariable("ptrack_xrtTimes", serialize.save_simple(xrtTimes))
+		end
+		
+		function xrt_start(name, line, wildcards)
+			timeRunTo = true
+			ColourNote("orange", "black", "timing runto: " .. wildcards[1])
+		end
+		
+		function done_moving()
+			-- see how long it took
+			if (calculateTime) then				
+				local timeTaken = os.clock() - startTime - .5
+								
+				-- Initialize the area if necessary
+				if (xrtTimes[currentArea] == nil) then xrtTimes[currentArea] = {} end
+				
+				-- Initialze values if necessary
+				if (xrtTimes[currentArea]["avgTime"] == nil) then xrtTimes[currentArea]["avgTime"] = 0 end
+				if (xrtTimes[currentArea]["occurrences"] == nil) then xrtTimes[currentArea]["occurrences"] = 0 end
+				
+				-- Get the current total time
+				local totalTime = xrtTimes[currentArea]["avgTime"] * xrtTimes[currentArea]["occurrences"]				
+				
+				-- assign new values
+				totalTime = totalTime + timeTaken
+				xrtTimes[currentArea]["occurrences"] = xrtTimes[currentArea]["occurrences"] + 1
+				xrtTimes[currentArea]["avgTime"] = totalTime / xrtTimes[currentArea]["occurrences"]
+								
+				-- write the new values to variable
+				SetVariable("ptrack_xrtTimes", serialize.save_simple(xrtTimes))
+				
+				calculateTime = false
+				ColourNote("orange", "black", "xrt " .. currentArea .. ": " .. tostring(timeTaken))				
+			end			
+		end	
+
+		function spairs(t, order)
+			-- collect the keys
+			local keys = {}
+			for k in pairs(t) do keys[#keys+1] = k end
+
+			-- if order function given, sort by it by passing the table and keys a, b,
+			-- otherwise just sort the keys 
+			if order then
+				table.sort(keys, function(a,b) return order(t, a, b) end)
+			else
+				table.sort(keys)
+			end
+
+			-- return the iterator function
+			local i = 0
+			return function()
+				i = i + 1
+				if keys[i] then
+					return keys[i], t[keys[i]]
+				end
+			end
+		end		
+	]]>
+	</script>
+</muclient>

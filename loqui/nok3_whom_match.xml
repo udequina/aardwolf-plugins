@@ -1,0 +1,85 @@
+<muclient>
+    <plugin
+        name="Nok3_Who_Match"
+        author="Nokfah_Hacked_by_Nega"
+        id="a5b514d09df80b4093caccfd"
+        language="Lua"
+        purpose="Filters who by a specified string"       
+    >
+    </plugin>
+   
+    <!--  Get our standard constants -->
+    <include name="constants.lua"/>   
+       
+    <aliases>
+        <alias
+            name="who_match_start"           
+            script="who_match_start"
+            enabled="y"
+            match="^whom (.*)$"           
+            regexp="y"           
+        >
+        </alias>
+    </aliases>   
+       
+    <triggers>                               
+        <trigger
+            name="who_match_end"
+            script="who_match_end"
+            enabled="n"
+            sequence="1"
+            match="^Players invis:.+$"
+            omit_from_output="y"
+            regexp="y"
+        >
+        </trigger>           
+       
+        <trigger
+            name="capture_pagesize"
+            script="capture_pagesize"
+            enabled="y"
+            sequence="100"
+            match="^You currently display (\d+) lines per page\.$"
+            regexp="y"
+        >
+        </trigger>
+    </triggers>
+               
+    <script>
+    <![CDATA[   
+        local pagesize = 0
+   
+        function capture_pagesize(line, name, wildcards)
+            pagesize = tonumber(wildcards[1])       
+        end
+       
+        function who_match_start(name, line, wildcards)
+            ColourNote("orange", "", "Looking for: ", "lime", "", wildcards[1])
+            EnableTrigger("who_match_end", true)                   
+           
+            -- capture pagesize
+            SendNoEcho("pagesize")
+            SendNoEcho("pagesize 0")
+           
+            -- create a gag trigger
+            AddTrigger("gag_not_matching", "^((?!" .. wildcards[1] .. ").)*$", "",
+                 trigger_flag.Enabled +  trigger_flag.OmitFromOutput + trigger_flag.KeepEvaluating + trigger_flag.IgnoreCase + trigger_flag.RegularExpression,
+                 custom_colour.NoChange, 0, "", "")
+           
+            -- mobdeaths
+            SendNoEcho("swho 12")
+        end
+       
+        function who_match_end()       
+            ColourNote("orange", "", "End of match")
+            EnableTrigger("who_match_end", false)
+           
+            -- delete gag trigger
+            DeleteTrigger("gag_not_matching")
+           
+            -- restore pagesize
+            SendNoEcho("pagesize " .. pagesize)               
+        end       
+    ]]>
+    </script>
+</muclient>

@@ -1,0 +1,2035 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+<muclient>
+<plugin
+   name="Nok3_WW_Mapper_Extender"
+   author="WinkleWinkle + Nokfah"
+   id="b6eae87ccedd84f510b74715"
+   language="Lua"
+   purpose="Extends mapper functionality"
+   date_written="2010-09-01 16:37:14"
+   requires="4.76"
+   version="3.0"
+   save_state="y"
+   >
+
+<description trim="n">
+<![CDATA[
+
+MAPPER EXTENDER USAGE:
+
+===== SHOW THIS HELP =============>
+>    extender help
+        - shows only this help
+>    ww help
+        - all winklewinkle(tm) plugins show help
+
+===== RUNNING ====================>
+>   xrunto [areaname]
+        - Runs you via mapper goto/walkto to the first room you discovered in that area
+		
+>   xrt [areaname]
+        - Same as "xrunto"
+
+>   xset mark
+        - Sets the current room you are in to be the "first" room of that area
+		
+>   xset mark [roomnumber]
+        - Sets room [roomnumber] as the first room in the area that it belongs to
+
+>   xset speed
+        - Toggles the use of mapper goto/walkto for all movement commands
+		
+>   xset speed <walk|run>
+        - changes the use of mapper goto/walkto for all movement commands
+
+>   xmapper move <roomid>		
+        - uses set movement speed to move to the specified room id
+
+>   xmapper move <roomid> <walk|run>
+        - uses a temporary movement speed to move to the specified room id
+		
+===== SEARCHING ==================>
+>   xm [roomname]	
+        - Lists and numbers rooms that match the [roomname] exactly, and then partial matches in the current area
+		
+>   xmall [roomname]
+        - Lists and numbers rooms that match the [roomname] exactly, and then partial matches in all areas
+		
+===== ROOMS ======================>
+>   go [index]
+        - Will run you with mapper goto/walkto to the first room in a numbered room list
+		
+>   go
+        - The same as typing "go 1"
+		
+>   nx
+        - Will run you to the next numbered room, "go" then "nx" would be the same as typing "go 1" then "go 2"
+		
+===== CAMPAIGNS ==================>
+>   xcp	
+        - Lists all active campaign mobs in a numbered list (see xcp [index])
+		
+>   xcp [index]
+        - Area CP runs you to the area of that CP item and does a Quick-Where on your mob. Type "go [index]" after this to go to the first known room found (if any)
+        - Room CP lists all known rooms that exactly match your CP room name. Type "go [index]" to run to the right room (if any).
+
+===== NOTES ======================>
+>   roomnote
+        - Lists all mapper notes for the current room (if any).
+		
+>   roomnote area
+        - Lists all mapper notes for the current area (if any). Useful for mazes
+
+===== SETTINGS ======================>
+>   xset pk
+        - Toggles the display of PK flag in room searches
+
+>   xset vidblain
+        - Toggles a hack that will allow you to speedwalk to vidblain areas if you do not have a portal to use
+		
+>	xset reset gui
+		- Will reset the X, Y and Z position of the Extender GUI
+
+===== TO CREATE A CEXIT / MAP A PORTAL ==========>
+
+http://code.google.com/p/aardwolf-scriptalicious/wiki/MapperHelp
+		
+]]>
+</description>
+
+</plugin>
+
+<!--  Timers  -->
+
+<timers>
+
+	<timer
+		name="tim_init_plugin"
+		script="init_plugin"
+		enabled="y"
+		second="1">
+	</timer>
+	
+	<timer
+		name="execute_in_area_timer"
+		script="execute_in_area_tick"
+		enabled="n"
+		second="0.25">
+	</timer>
+
+</timers>
+
+<!--  finding aliases -->
+
+<aliases>
+
+	<!-- debug -->
+
+	<alias
+		name="ali_toggle_debug"
+		match="^ext debug$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="ext_debug"
+	>
+	</alias>
+
+	<alias match="^(?:ww|extender) help$"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		regexp="y"
+		keep_evaluating="y"		
+	>
+	<send>
+		ColourNote("MediumSeaGreen", "", GetPluginInfo (GetPluginID (), 3))
+	</send>
+	</alias>
+
+	<!-- Settings -->
+	
+	<alias
+		name="ali_set_pk"
+		match="^xset pk$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="xset_pk"
+	>
+	</alias>
+
+	<alias match="^xset mark$"
+		enabled="y"
+		sequence="100"
+		script="xset_to_mark"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^xset mark (?<roomid>[0-9]+)$"
+		enabled="y"
+		sequence="99"
+		script="xset_to_mark_roomid"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^xset vidblain$"
+		enabled="y"
+		sequence="99"
+		script="set_check_vidblain"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^xru?n?to? (.+)$"
+		enabled="y"
+		sequence="100"
+		script="xrun_to"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^xm(?:\ {(?<mob>[^\}]+)\})? (?<loc>.+)$"
+		enabled="y"
+		sequence="100"
+		script="map_area"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^xmal?l?(?:\ {(?<mob>[^\}]+)\})? (?<loc>.+)$"
+		enabled="y"
+		sequence="99"
+		script="map_area_all"
+		regexp="y"
+		keep_evaluating="n"
+	>
+	</alias>
+
+
+	-- cp
+	<alias match="^(?<cmd>cp|ca|cam|camp|campa|campai|campaig|campaign) (?<param>c|ch|che|chec|check)$"
+		enabled="y"
+		sequence="5"
+		script="xcp_check"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^(?<cmd>xcp) ?(?<param>c|ch|che|chec|check|test)?$"
+		enabled="y"
+		sequence="6"
+		script="xcp_check"
+		regexp="y"
+	>
+	</alias>
+	
+	<alias match="^(xcp|cp|ca|cam|camp|campa|campaign) (?<index>[0-9]+)$"
+		enabled="y"
+		sequence="100"
+		script="goto_cp"
+		regexp="y"
+	>
+	</alias>
+	
+	<alias match="^(xcp|cp|ca|cam|camp|campa|campaign) (?<option>r|n)$"
+		enabled="y"
+		sequence="100"
+		script="goto_cp_rn"
+		regexp="y"
+	>
+	</alias>
+
+	-- gq
+	<alias match="^(?<cmd>gq) (?<param>c|ch|che|chec|check)$"
+		enabled="y"
+		sequence="5"
+		script="xgq_check"
+		regexp="y"
+	>
+	</alias>
+	
+	<alias match="^(?<cmd>xgq) ?(?<param>c|ch|che|chec|check|test)?$"
+		enabled="y"
+		sequence="6"
+		script="xgq_check"
+		regexp="y"
+	>
+	</alias>
+	
+	<alias match="^(xgq|gq) (?<index>[0-9]+)$"
+		enabled="y"
+		sequence="100"
+		script="goto_gq"
+		regexp="y"
+	>
+	</alias>	
+	
+	-- go
+	<alias match="^got?o?( (?<id>.+))?$"
+		enabled="y"
+		sequence="100"
+		script="goto_number"
+		regexp="y"
+	>
+	</alias>
+
+
+	<alias match="^nx$"
+		enabled="y"
+		sequence="100"
+		script="goto_next"
+		regexp="y"
+	>
+	</alias>
+
+	<!-- speed -->
+
+	<alias match="^xset speed ?(?<speed>run|walk)?$"
+		enabled="y"
+		sequence="100"
+		script="set_speed"
+		regexp="y"
+	>
+	</alias>
+	
+	<alias match="^xma?p?p?e?r? move (?<roomid>[0-9]+) ?(?<speed>run|walk)?$"
+		enabled="y"
+		sequence="95"
+		script="move_trigger"
+		regexp="y"
+	>
+	</alias>
+	
+	<!-- roomnotes -->
+
+	<alias match="^r(?:oomnote|n)$"
+		enabled="y"
+		sequence="100"
+		script="room_note"
+		regexp="y"
+	>
+	</alias>
+
+	<alias match="^r(?:oomnote|n) a(?:rea)?(?: (?<areaid>.+))?$"
+		enabled="y"
+		sequence="99"
+		script="room_note_area"
+		regexp="y"
+	>
+	</alias>
+
+ 	<alias match="^xmapper purge room$"
+		enabled="y"
+		sequence="100"
+		script="map_purgeroom"
+		regexp="y"
+	>
+	</alias>
+
+	<!-- Sql Execution -->
+
+	<alias name="runsql"
+		match="^runsql (?<sql>.+)$"
+		enabled="y"
+		sequence="1"
+		script="RunSql"
+		regexp="y"
+	>
+	</alias>
+
+    <alias name="execsql"
+    	match="^execsql (?<sql>.+)$"
+    	enabled="y"
+    	sequence="1"
+    	script="ExecSql"
+    	regexp="y"
+    >
+    </alias>
+
+</aliases>
+
+<triggers>
+
+	<!-- cp triggers -->
+	<trigger
+		name="trg_cp_request"
+		match="^Commander Barcett tells you \'Good luck in your campaign\!\'$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		send_to="12"
+	>
+		<send>Execute("cp c")</send>
+	</trigger>
+
+	<trigger 
+		name="trg_cp_mob_dead"
+		match="Congratulations, that was one of your CAMPAIGN mobs!"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+	>
+		<send>Execute("cp c")</send>
+	</trigger>
+
+	<trigger match="^You still have to kill \* (?<mob>[^\(]+) \((?<where>.+?)(?<isdead> - Dead)?\)\.?$"
+		name="trg_xcp_line"
+		script="xcp_index_line"
+		enabled="n"
+		regexp="y"
+		omit_from_output="y"
+		sequence="500">
+	</trigger>
+
+	<trigger match="^(?!You still have to kill \*)"
+		name="trg_xcp_line_end"
+		script="xcp_index_line_end"
+		enabled="n"
+		regexp="y"
+		omit_from_output="n"
+		sequence="500">
+	</trigger>
+
+	<trigger match="You are not currently on a campaign."
+		name="trg_xcp_line_end_none"
+		script="xcp_index_line_end"
+		enabled="y"
+		regexp="n"
+		omit_from_output="n"
+		sequence="500">
+	</trigger>
+	
+	<!-- gq triggers -->
+	<trigger match="^Global Quest: The global quest for levels (.*) to (.*) has now started.$"
+		name="trg_gq_start"
+		enabled="y"			  
+		sequence="100"
+		regexp="y"
+		send_to="12"
+		>
+		<send>Execute("gq c")</send>
+	</trigger>	
+
+	<trigger match="^Congratulations, that was one of the GLOBAL QUEST mobs!$"
+		name="trg_gq_mob_dead"	  
+		enabled="y"		
+		sequence="100"
+		regexp="y"
+		send_to="12"
+		>
+		<send>Execute("gq c")</send>
+	</trigger>
+	
+	<trigger match="^You still have to kill (?<qty>[0-9]) \* (?<mob>[^\(]+) \((?<where>.+?)(?<isdead> - Dead)?\)$"
+		name="trg_xgq_line"
+		script="xgq_index_line"
+		enabled="n" 
+		regexp="y"
+		sequence="10"		
+		>
+	</trigger>
+	
+	<trigger match="^(?!You still have to kill).*$"
+		name="trg_xgq_line_end"
+		script="xgq_index_line_end"
+		enabled="n"
+		regexp="y"
+		sequence="10"		
+		>
+	</trigger>
+	
+	<trigger match="^You are not on a global quest\.*$"
+		name="trg_xgq_line_end_none"
+		script="xgq_index_line_end"
+		enabled="n"
+		regexp="y"
+		sequence="500"		
+		>
+	</trigger>
+	
+	<!-- area grabber -->
+	<trigger match="              [ Listing all areas in range * to * ]"
+		name="trg_area_index_start_gag"
+		script="area_index_start_gag"
+		enabled="y"
+		regexp="n"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+
+	<trigger match="^From To   Lock  Builder          Area Name"
+		name="trg_area_index_start"
+		script="area_index_start"
+		enabled="n"
+		regexp="y"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+	
+	<trigger match="---- ---- ----  ---------------  ------------------------------"
+		name="trg_area_index_gag1"
+		enabled="n"
+		regexp="n"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+	<trigger match="---------------------------------------------------------------"
+		name="trg_area_index_gag2"
+		enabled="n"
+		regexp="n"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+	
+	<trigger match="^ (?<min>[0-9 ]{3})  (?<max>[0-9 ]{3})  (?<lock>[0-9 ]{3})  (?<author>.{15})  (?<area>.+)$"
+		name="trg_area_index_line"
+		script="area_index_line"
+		enabled="n"
+		regexp="y"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+
+	<trigger match="'Lock' means you cannot enter until you are that level or higher."
+		name="trg_area_index_end"
+		script="area_index_end"
+		enabled="n"
+		regexp="n"
+		omit_from_output="n"
+		sequence="100">
+	</trigger>
+
+</triggers>
+
+<variables>
+	<variable name="example"></variable>
+</variables>
+
+<!--  Get our standard constants -->
+<include name="constants.lua"/>
+
+<!--  Script  -->
+<script>
+
+
+<![CDATA[
+	-- Do something with this
+	-- Your journey was broken by the need to defend yourself.
+
+	require "serialize"
+	require "gmcphelper"
+	require "tprint"
+
+	-- Variables --
+	local showDebug = 0
+
+	local search_destroy_id = "e50b1d08a0cfc0ee9c442001"	
+	local mob_logger_id = "c5b534a09df80b4093cabbfd"
+
+	local cpList = {}
+	local cpIndex = 1
+	local cpIndexLast = 1
+	
+	local gqList = {}
+	local gqIndex = 1
+	local gqIndexLast = 1
+
+	local mode = nil
+	local gotoList = {}
+	local gotoIndex = 1
+	local currentRoom
+
+	local char_status
+
+	local next_room = -1
+	local last_area = ""
+
+	local lastRoomId = -10
+
+	local mapper_area_index = 0
+
+	local last_substitute
+	
+	local speed = "run"
+	
+	local stackedGotoItem = 0
+
+
+	local showPK = GetVariable("showPK") or "true"
+	local USER_check_vidblain = GetVariable("XRunToCheckVidblain") or "false"
+	local USER_show_help = "true"
+	--local USER_run_if_one_room = true
+
+	local init_called = 0
+
+	local area_range = {}
+
+	---------------------
+
+	function init_plugin()
+		if (init_called < 2) then
+		
+			Execute("sendgmcp request char")
+
+			local localchar = char_status
+			if (localchar ~= nil and tonumber(localchar.state) == 3) then
+			
+				if (init_called == 0) then
+					Execute("xset suspend page size")
+					init_called = 1
+				else
+				
+					EnableTimer("tim_init_plugin", false)
+					init_called = 2
+
+					Execute("sendgmcp request room")
+					
+					-- trigger a search for area limits
+					SendNoEcho("area 0 298")
+
+
+				end
+				
+			end		
+		end
+	end
+
+	function OnPluginBroadcast (msg, id, name, text)
+		-- Look for GMCP handler.
+		if (id == '3e7dedbe37e44942dd46d264') then
+			if (text == "room.info") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info")
+
+				luastmt = "gmcpdata = " .. gmcparg
+				assert (loadstring (luastmt or "")) ()
+
+				currentRoom = {
+					roomid = gmcpval("num"),
+					areaid = gmcpval("zone")
+				}
+			elseif (text == "char.status") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")
+				luastmt = "gmcpdatacharstatus = " .. gmcparg
+				assert (loadstring (luastmt or "")) ()
+				char_status = gmcpdatacharstatus
+				--tprint(char_status)
+
+				--currentState = tonumber(gmcpval("status.state"))
+			end
+		end
+	end
+	
+	function set_speed(name, line, wildcards)
+		if (wildcards.speed ~= "") then
+			speed = wildcards.speed
+		else
+			if (speed == "walk") then
+				speed = "run"
+			else
+				speed = "walk"
+			end
+		end
+		ColourNote("darkorange", "", "Move speed:" .. speed)
+	end
+
+
+	function move_trigger(name, line, wildcards)		
+		if (wildcards.roomid ~= "") then
+			move(wildcards.roomid, wildcards.speed)
+		end
+		
+	end
+	
+	function move(roomid, temp_speed)	
+		if (temp_speed == nil or temp_speed == "") then
+			temp_speed = speed
+		end
+		if (temp_speed == "walk") then
+			Note("walking to " .. roomid)
+			Execute("mapper walkto " .. roomid)
+		else
+			Execute("mapper goto " .. roomid)
+		end
+	end
+	
+	local last_cp_check = os.time()
+	local xcp_flag = false
+	function xcp_check(name, line, wildcards)
+		DebugNote("xcp_check")
+		
+		xcp_flag = true
+
+		-- prevent double cp checks from different plugins
+		local time_check = os.time()
+		if ((time_check - last_cp_check) < 2) then
+			return
+		end
+		last_cp_check = time_check
+
+		cpList = {}
+		cpIndex = 1
+		EnableTrigger("trg_xcp_line", true)
+		EnableTrigger("trg_xcp_line_end", false)
+		
+		if (wildcards.param == "test") then
+			cp_simulate()
+		else
+			Send("cp c")
+		end
+	end
+	
+	local last_gq_check = os.time()
+	local xgq_flag = false
+	function xgq_check(name, line, wildcards)
+		xgq_flag = true
+
+		-- prevent double gq checks from different plugins
+		local time_check = os.time()
+		if ((time_check - last_gq_check) < 2) then
+			return
+		end
+		last_gq_check = time_check
+
+		gqList = {}
+		gqIndex = 1
+		EnableTrigger("trg_xgq_line", true)
+		EnableTrigger("trg_xgq_line_end", false)
+						
+		if (wildcards.param == "test") then
+			gq_simulate()
+		else
+			Send("gq c")
+		end		
+	end
+
+
+	function xcp_index_line(name, line, wildcards)
+		EnableTrigger("trg_xcp_line_end", true)
+
+		if (cpList == nil) then
+			cpList = {}
+			cpIndex = 1
+		end
+		
+		DebugNote("xcp_index_line:" .. wildcards.mob)
+		cpIndex = get_rooms_areas(cpList, cpIndex, wildcards.where, wildcards.mob, 1, wildcards.isdead)
+	end
+
+	function xgq_index_line(name, line, wildcards)
+		EnableTrigger("trg_xgq_line_end", true)
+
+		if (gqList == nil) then
+			gqList = {}
+			gqIndex = 1
+		end
+		
+		DebugNote("xgq_index_line:" .. wildcards.mob)
+		gqIndex = get_rooms_areas(gqList, gqIndex, wildcards.where, wildcards.mob, wildcards.qty, wildcards.isdead)			
+	end
+
+	local get_rooms_areas_sql = 
+		" SELECT r.uid as room, r.name as roomName, a.uid as area, a.name as areaName, 'room' as type, info, " ..
+		" r.norecall as recall, r.noportal as portal " ..
+		" FROM rooms r " ..
+		" INNER JOIN areas a ON r.area = a.uid " ..
+		" WHERE r.name = %s " ..
+		" AND r.name <> a.name " ..
+		" UNION " ..
+		" SELECT -1 as room, '' as roomName, uid as area, name as areaName, 'area' as type, '' as info, " ..
+		" '0' as recall, '0' as portal " ..
+		" FROM areas " ..
+		" WHERE name = %s " ..
+		" ORDER BY type ASC "
+
+	function get_rooms_areas(list, listIndex, place, mobName, qty, isDead)
+		local localLevel = -1
+		if (char_status == nill) then
+			DebugNote("Unknown char status")
+			return
+		else
+			localLevel = tonumber(char_status.level)
+		end
+		
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		-- find room/area
+		local select = string.format (get_rooms_areas_sql, fixsql(place), fixsql(place))
+		DebugNote(select)
+		
+		local index = 0
+		local lastMobSignature = ""
+		for row in db:nrows(select) do
+
+			if (row.type == "room") then				
+			
+				local tolerance = 11
+				local min = (area_range[row.areaName] or {min = 0}).min 
+				local max = (area_range[row.areaName] or {max = 300}).max
+				-- debug
+				--min = 0
+				--max = 300
+
+				-- filter out spammy neighbouring rooms.. too much spam!
+				local mobSignature = row.areaName .. "|" .. mobName
+				local showItem = false
+				DebugNote("lastMobSignature:" .. lastMobSignature .. ":mobSignature:" .. mobSignature)
+				
+				-- sanitize text room ids for "unmappable" rooms that are now being mapped
+				row.room = (tonumber(row.room) or "nomap")
+
+				if (lastMobSignature ~= mobSignature) then
+				
+					if (localLevel >= (min - tolerance) and localLevel <= (max + tolerance)) then
+						
+						index = index + 1
+				
+						list[listIndex] = {
+							qty = tonumber(qty),
+							mob = mobName,
+							type = row.type,
+							roomId = row.room,
+							roomName = row.roomName,
+							areaId = row.area,
+							areaName = row.areaName,
+							area = row.area,
+							recall = row.recall,
+							portal = row.portal,							
+							isDead = isDead,
+							min = min,
+							max = max,
+							info = row.info}
+
+						listIndex = listIndex + 1
+					else
+						local link = string.format("Ignoring due to level : %s in '%s' (%s) [%s-%s]", mobName, row.roomName, row.area, min, max)
+						Hyperlink("xm move " .. row.room, link, "Move to room " .. row.room, "Khaki", "black", 0)
+						print("")
+					end
+				end
+					
+				lastRoomId = row.room
+				lastMobSignature = mobSignature
+				
+			else -- area
+				index = index + 1
+			
+				DebugNote("get_rooms_areas - area:" .. index .. ":" .. mobName)
+			
+				list[listIndex] = {
+					qty = tonumber(qty),
+					mob = mobName,
+					type = row.type,
+					roomId = row.room,
+					roomName = row.roomName,
+					areaId = row.area,
+					areaName = row.areaName,
+					area = row.area,
+					recall = row.recall,
+					portal = row.portal,
+					isDead = isDead}
+
+				listIndex = listIndex + 1
+			
+			end
+		end
+		db:close_vm()
+		
+		DebugNote(mobName .. " index:" .. index)
+		-- add unknown mobs
+		if (index == 0) then
+			
+			list[listIndex] = {
+				qty = tonumber(qty),
+				mob = mobName,
+				type = "unknown",
+				roomId = 0,
+				roomName = place,
+				areaId = "UNKNOWN",
+				areaName = "UNKNOWN",
+				area = "UNKNOWN",
+				isDead = isDead}
+
+			listIndex = listIndex + 1	
+		end
+		
+		return listIndex
+	end
+	
+	function print_rooms_areas(list, command)
+
+		DebugNote("print_rooms_areas:" .. command .. ":" .. #list)
+	
+		--reset signature for next search
+		lastMobSignature = ""
+
+
+		if (USER_show_help == "true") then
+			ColourNote("Gray", "", "Type '" .. command .. " <Index>' or click link, to go to that item")
+			ColourNote("Gray", "", "  Index     Target          - Location")
+			ColourNote("Gray", "", "---------------------------------------")
+		end
+		
+		local index = 0
+		for key, value in ipairs(list) do
+		
+			index = index + 1
+		
+			local qty = ""
+			if (value.qty > 1) then
+				qty = string.format("%s * ", value.qty)
+			end
+
+			local mobText = qty .. value.mob
+			local deadFlag = false
+			if (value.isDead ~= nil and value.isDead ~= "") then
+				mobText = mobText .. " [Dead]"
+				deadFlag = true
+			end
+			
+			DebugNote("xcp_index_line_end:" .. value.mob)
+			local link
+			local color
+			if (value.type == "area") then
+				link = string.format("~~~  %s %s - %s", padRight(key, 6, " "), padRight(mobText, 20, " "), padRight(value.areaId, 12, " "))
+				if (deadFlag == false) then
+					color = "Snow"
+				else
+					color = "DimGray"
+				end
+			elseif (value.type == "room") then
+				
+				link = string.format("~~~  %s %s - '%s' (%s) - %s [%s-%s]", 
+					padRight(key, 6, " "), 
+					padRight(mobText, 20, " "), 
+					value.roomName, 
+					padRight(value.roomId, 5, " "), 
+					value.areaId, value.min, value.max)
+				if (deadFlag == false) then
+					color = "lightblue"
+				else
+					color = "DimGray"
+				end
+			else -- unknown
+				link = string.format("~~~  %s %s - '%s' is Unknown", padRight(key, 6, " "), padRight(mobText, 20, " "), value.roomName)
+				if (deadFlag == false) then
+					color = "Crimson"
+				else
+					color = "DarkRed"
+				end
+			end		
+			
+			Hyperlink(command .. " " .. key, link, "Start CP item " .. key, color, "black", 0)
+			
+			if (value.type == "area") then
+				Hyperlink("roomnote area " .. value.areaId , "   [notes]", "Show notes for " .. key, "lightgreen", "black", 0)
+			end
+			print("")
+		end
+		
+		if (index == 0) then
+			ColourNote("darkorange", "", "   No campaign items to show.")
+		end
+
+		if (USER_show_help == "true") then
+			ColourNote("Gray", "", "---------------------------------------")
+		end
+
+	end
+
+
+	function xcp_index_line_end(name, line, wildcards)			
+		DebugNote("xcp_index_line_end")
+
+		EnableTrigger("trg_xcp_line", false)
+		EnableTrigger("trg_xcp_line_end", false)
+
+		if (xcp_flag == false) then
+			return
+		end
+		xcp_flag = false
+		
+		-- print_rooms_areas(cpList, "xcp")
+		
+		-- broadcast this data for other plugins to consume
+		local ser = serialize.save_simple(cpList)
+		--print(ser)
+		BroadcastPlugin(669, ser)		
+		
+		if (stackedGotoItem > 0) then			
+			Execute(mode .. " " .. stackedGotoItem)
+			stackedGotoItem = 0
+		end
+	end
+
+	function xgq_index_line_end(name, line, wildcards)		
+		DebugNote("xgq_index_line_end")
+
+		EnableTrigger("trg_xgq_line", false)
+		EnableTrigger("trg_xgq_line_end", false)
+
+		if (xgq_flag == false) then
+			return
+		end
+		xgq_flag = false	
+		
+		-- broadcast this data for other plugins to consume
+		local ser = serialize.save_simple(gqList)
+		--print(ser)
+		BroadcastPlugin(670, ser)		
+		
+		if (stackedGotoItem > 0) then			
+			Execute(mode .. " " .. stackedGotoItem)
+			stackedGotoItem = 0
+		end
+	end
+
+	function goto_number(name, line, wildcards)
+		Note("goto_number: " .. wildcards.id)
+
+		if (wildcards.id == nil or wildcards.id == "") then
+			gotoIndex = 1
+		else
+			gotoIndex = tonumber(wildcards.id)
+		end
+
+		if (gotoList[gotoIndex] ~= nil) then
+			if (tonumber(gotoList[gotoIndex]) == nil) then
+				-- go to an area
+				Execute("xrt " .. gotoList[gotoIndex])
+			else
+				next_room = gotoList[gotoIndex]
+				goto_roomid(gotoList[gotoIndex])
+			end
+		else
+			ColourNote("darkorange", "", "No destination exists")
+		end
+	end
+
+	function goto_roomid(roomid)
+
+		local dest_in_vidblain = is_vidblain_area(roomid)
+		local both_in_vidblain = dest_in_vidblain and is_vidblain_area(currentRoom.roomid)
+
+
+		if (dest_in_vidblain == true and both_in_vidblain == false) then
+			Execute("xmapper move 11910")
+			Execute("enter hole")
+
+			local func = function() Execute("xmapper move " .. roomid) end
+			execute_in_area("vidblain_hack", "vidblain", func)
+
+		else
+			Execute("xmapper move " .. roomid)
+		end
+	end
+
+	local is_vidblain_area_sql =  
+		"SELECT area " ..
+		"FROM rooms " ..
+		"WHERE uid = %s "
+
+	function is_vidblain_area(roomid)
+
+		if (USER_check_vidblain == "false") then
+			return false
+		end
+
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local select = string.format (is_vidblain_area_sql, fixsql(roomid))
+		for row in db:nrows(select) do
+			--Note(row.area)
+			local areaid = row.area
+			if (areaid == "vidblain" or
+				areaid == "imperial" or
+				areaid == "darklight" or
+				areaid == "sendhian" or
+				areaid == "omentor") then
+				
+				db:close_vm()
+				return true
+			end
+		end		
+		db:close_vm()
+
+		return false
+
+	end
+
+	function goto_next(name, line, wildcards)
+
+		DebugNote("next:" .. next_room .. ":" .. currentRoom.roomid)
+		if (tonumber(next_room) == tonumber(currentRoom.roomid)) then
+			gotoIndex = gotoIndex + 1
+		end
+
+		if (gotoList[gotoIndex] ~= nil) then
+			
+			ColourNote("darkorange", "", "Goto - " .. gotoIndex .. " of " .. #gotoList)
+			next_room = gotoList[gotoIndex]
+			Execute("xmapper move " .. next_room)
+		else
+			ColourNote("darkorange", "", "No destination exists")
+		end
+	end
+
+	function goto_cp(name, line, wildcards)
+		cpIndex = tonumber(wildcards.index)
+		cpIndexLast = cpIndex
+		mode = "cp"				
+
+		DebugNote("goto_cp:" .. wildcards.index)
+		
+		goto_list_item(cpList, cpIndex)	
+	end
+	
+	function goto_gq(name, line, wildcards)
+		gqIndex = tonumber(wildcards.index)
+		gqIndexLast = gqIndex
+		mode = "gq"				
+
+		DebugNote("goto_gq:" .. wildcards.index)	
+		
+		goto_list_item(gqList, gqIndex)	
+	end
+	
+	function goto_cp_rn(name, line, wildcards)
+
+		if (wildcards.option == "n") then
+			cpIndex = 1
+			cpIndexLast = cpIndex
+		else
+			cpIndex = cpIndexLast
+		end				
+		
+		mode = "cp"
+
+		DebugNote("goto_cp:n")
+		
+		goto_list_item(cpList, cpIndex)
+	
+	end
+	
+	function goto_list_item(list, index)			
+		-- reset room list
+		gotoList = {}
+		gotoIndex = 1
+
+		local localItem = list[index]
+		local localRoom = currentRoom
+		
+		if (localItem ~= nil and localRoom ~= nil and localRoom.areaid ~= nil) then
+		
+			-- send this mob name to S&D plugin
+			DebugTPrint("goto_list_item - localItem", localItem)
+		
+			if (localItem.type == "area") then
+				DebugNote("area type")				
+				remote_guess_mob_name(localItem.mob, localItem.areaId, true)
+				if (localRoom.areaid ~= localItem.areaId) then
+					Execute("xrt " .. localItem.areaId)
+				end
+				
+				local func = function() 
+					Execute("x_ht " .. localItem.mob) 
+				end
+				execute_in_area("goto_list_item_area", localItem.areaId, func)
+			else -- "room"
+				DebugNote("room type")				
+				remote_guess_mob_name(localItem.mob, localItem.areaId, true)
+				search_rooms(localItem.roomName .. "|" .. localItem.areaId, "area", localItem.mob)				
+			end
+		elseif (table.getn(list) > 0 and table.getn(list) < index) then		
+			ColourNote("darkorange", "", "No item exists")			
+		else
+			ColourNote("darkorange", "", "Data busy (will execute once ready)")		
+			stackedGotoItem = index
+			-- Reset the indexes for when the list is populated again
+			cpIndex = 1
+			gqIndex = 1
+		end
+
+	end
+
+	local xrun_to_sql1 =  
+		"SELECT r.uid, r.name as room, a.name as area " ..
+		"FROM rooms r " ..
+		"INNER JOIN areas a ON a.uid = r.area " ..
+		"WHERE a.uid like %s " ..
+		"ORDER BY r.date_added ASC, r.name "
+		
+	local xrun_to_sql2 =  
+		"SELECT r.uid, r.name as room, a.name as area " ..
+		"FROM rooms r " ..
+		"INNER JOIN areas a ON a.uid = r.area " ..
+		"WHERE a.uid like %s " ..
+		"OR a.name like %s " ..
+		"ORDER BY r.date_added ASC, r.name "
+	
+
+	function xrun_to(name, line, wildcards)
+
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		-- HACK for ftii
+		if (wildcards[1] == "ft2") then
+			wildcards[1] = "ftii"
+		end
+		
+		-- try exact hit first
+		local select = string.format (xrun_to_sql1, fixsql(wildcards[1]))
+		DebugNote("xrun_to (1)- " .. select)
+
+		local index = 1
+		--Note(string.format (sql, fixsql(wildcards[1])))
+		for row in db:nrows(select) do
+			ColourNote("darkorange", "", "x-runto (" .. row.uid .. ") " .. row.room .. " in " .. row.area)
+
+			goto_roomid(row.uid)
+
+			index = index + 1
+			db:close_vm()
+			return
+		end
+		db:close_vm()
+
+		local like = fixsql("%" .. wildcards[1] .. "%")
+		select = string.format (xrun_to_sql2, like, like)
+		DebugNote("xrun_to (2)- " .. select)
+
+		for row in db:nrows(select) do
+			ColourNote("darkorange", "", "x-runto (" .. row.uid .. ") " .. row.room .. " in " .. row.area)
+
+			goto_roomid(row.uid)
+
+			index = index + 1
+			db:close_vm()
+			return
+		end
+		db:close_vm()
+
+		if (index == 1) then
+			ColourNote("darkorange", "", "No matching rooms found. Using aardwolf runto...")
+			Execute("xmapper move 32418") -- recall
+			Execute("runto " .. wildcards[1])
+		end
+	end
+
+	function xset_pk(name, line, wildcards)
+
+		if (showPK == "true") then
+			showPK = "false"
+		else
+			showPK = "true"
+		end
+		
+		SetVariable("showPK", showPK)
+		ColourNote("DarkOrange", "", "Show PK room flag : " .. showPK)
+
+	end
+
+	function xset_to_mark(name, line, wildcards)
+
+		mark_roomid(currentRoom.roomid)
+
+	end
+
+	function xset_to_mark_roomid(name, line, wildcards)
+
+		mark_roomid(wildcards.roomid)
+
+	end
+
+	local mark_roomid_sql = 
+		"UPDATE rooms " ..
+		"SET date_added = (SELECT DATETIME( min(date_added), '-1 days') FROM rooms WHERE area = (SELECT area FROM rooms WHERE uid = %s)) " ..
+		"WHERE uid = %s "
+		
+	function mark_roomid(roomid)
+
+		if (roomid ~= nil) then
+			local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+			local db = assert(sqlite3.open(worldPath .. ".db"))
+
+			Note("Marking room " .. roomid .. " as the start room for its area." )
+
+			db:execute(string.format(mark_roomid_sql, fixsql(roomid), fixsql(roomid)))
+			db:close_vm()
+		end
+		
+
+	end
+
+	---- room notes --------
+
+	function room_note_area(name, line, wildcards)
+		if (wildcards.areaid == "") then
+			get_notes(currentRoom.areaid, nil)
+		else
+			get_notes(wildcards.areaid, nil)
+		end
+	end
+
+	function room_note(name, line, wildcards)
+		get_notes(nil, currentRoom.roomid)
+	end
+
+	function get_notes(areaid, roomid, text_only)
+
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local sql =  " SELECT b.uid, b.notes "
+		sql = sql .. " FROM bookmarks b "
+		if (areaid ~= nil) then
+			sql = sql .. " INNER JOIN rooms r ON b.uid = r.uid "
+			sql = sql .. " WHERE r.area = " .. fixsql(areaid)
+		else
+			sql = sql .. " WHERE b.uid = " .. fixsql(roomid)
+		end
+		sql = sql .. " ORDER BY b.uid "
+		DebugNote(sql)
+
+		local index = 0
+
+		if (areaid ~= nil) then
+			Simulate("\nNotes for " .. getAreaName(areaid) .. "\n")
+		end
+
+		for row in db:nrows(sql) do
+			index = index + 1
+
+			if (text_only == true) then
+				local line = string.format("    note:'%s'", row.notes)
+				Hyperlink("xmapper move " .. row.uid, line, "go to room " .. row.uid, "lightblue", "black", 0)		
+			else
+				local line = string.format("    (%s) %s", row.uid, row.notes)
+				Hyperlink("xmapper move " .. row.uid, line, "go to room " .. row.uid, "lightblue", "black", 0)
+				print("")
+			end		
+		end
+		db:close_vm()
+		
+		if (areaid ~= nil and index == 0 and text_only ~= true) then
+			Simulate("\tNo notes.\n")
+		end
+	end
+
+
+
+	function getRoomByMob(mobName)
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local sql =  "SELECT roomid, mobname, count "
+		sql = sql .. "FROM mobs "
+		sql = sql .. "WHERE mobname = %s "
+		sql = sql .. "ORDER BY count desc "
+
+		for row in db:nrows(string.format (sql, fixsql(uid))) do
+			db:close_vm()
+			return row.name
+		end
+		db:close_vm()
+	end
+
+
+	function getAreaName(uid)
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local sql =  "SELECT name FROM areas WHERE uid = %s"
+		for row in db:nrows(string.format (sql, fixsql(uid))) do
+			db:close_vm()
+			return row.name
+		end
+		db:close_vm()
+		
+		return uid
+	end
+
+	function getAreaUid(name)
+
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local sql =  "SELECT uid FROM areas WHERE name = %s order by uid "
+
+		local areas = {}
+		local index = 0
+		DebugNote("getAreaUid:" .. fixsql(name))
+		for row in db:nrows(string.format (sql, fixsql(name))) do
+			DebugNote(row.uid .. ":" .. name)
+			index = index + 1
+			areas[index] = {uid = row.uid, name = name}
+		end
+		
+		db:close_vm()
+		return areas
+	end
+
+
+	function map_area(name, line, wildcards)
+		search_rooms(wildcards.loc, 'area', wildcards.mob)
+	end
+
+	function map_area_all(name, line, wildcards)
+		search_rooms(wildcards.loc .. "|all", 'all', wildcards.mob)
+	end
+	
+	local search_rooms_sql = 
+		"SELECT r.uid as uid, r.name as name, info, r.area as area, " ..
+		"r.norecall as recall, r.noportal as portal, " ..
+		"ifnull(a.name, r.area) as area_name, 1 as DisplayOrder " .. 
+		"FROM rooms r " ..
+		"LEFT OUTER JOIN areas a ON r.area = a.uid " ..
+		"WHERE r.name = %s " ..
+		"AND (%s = 'all' OR (a.name = %s OR r.area = %s)) " ..
+		
+		"UNION " ..
+		
+		"SELECT r.uid, r.name, info, r.area, " ..
+		"r.norecall as recall, r.noportal as portal, " ..
+		"ifnull(a.name, r.area) as area_name, 0 as DisplayOrder " .. 
+		"FROM rooms r " ..
+		"LEFT OUTER JOIN areas a ON r.area = a.uid " ..
+		"WHERE r.name <> %s " ..
+		"AND r.name LIKE %s " .. 
+		"AND (%s = 'all' OR (a.name = %s OR r.area = %s)) " ..
+		"ORDER BY Area, DisplayOrder DESC "
+	
+	function search_rooms(room, searchType, fullMobName)
+		DebugNote("search_rooms(" .. room .."," .. searchType .. "," .. fullMobName .. ")")
+	
+		if (room == nil or room == "") then
+			Note("map_area() error : room is not known")
+			return
+		end
+
+		-- room|area
+		local parts = split(room, "[^|]+") -- pipe delimited
+		local room = parts[1]
+		local area_id
+		if (#parts == 2) then
+			area_id = parts[2]
+		else
+			if (currentRoom ~= nil) then
+				area_id = currentRoom.areaid
+			else
+				ColourNote("darkorange", "", "Area not known, falling back to mapper list")
+				Execute("mapper list " .. parts[1])
+			end
+		end
+
+		if (room == nil) then
+			Note("map_area() - Room not known")
+			return
+		end
+
+		like = "%"..room.."%"	
+
+		local select = string.format(search_rooms_sql, 
+			fixsql(room), 
+			fixsql(area_id), 
+			fixsql(area_id), 
+			fixsql(area_id), 
+			fixsql(room), 
+			fixsql(like), 
+			fixsql(area_id), 
+			fixsql(area_id), 
+			fixsql(area_id))
+		DebugNote(select)
+			
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+		
+		local results = {}
+		local roomid_list = {}
+		
+		for row in db:nrows(select) do
+
+			-- sanitize text room ids for "unmappable" rooms that are now being mapped
+			local id = (tonumber(row.uid) or -1)
+			results[#results + 1] = { 
+				uid = id, 
+				name = row.name,
+				info = row.info,
+				area = row.area_name,
+				portal = row.portal,
+				recall = row.recall,
+				areaid = row.area or row.area_name -- make safe against bad dbs		
+			}
+			
+			-- make a list of room ids
+			if (id > 0) then
+				roomid_list[#roomid_list + 1] = id
+			end
+
+		end   -- finding rooms
+		db:close_vm()
+															
+		
+		-- add mob to room mapping
+		if (IsPluginInstalled(mob_logger_id)) then
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\loot.db")												
+			local mobSelect = "SELECT ml.RoomNumber, ml.Occurrences FROM Mob as m LEFT JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+					   " WHERE m.Name like \'" .. string.gsub(fullMobName, "\'", "") .. "\'"			
+			mobList = {}
+			for roomNum, occurrences in lootDB:urows(mobSelect) do 			
+				mobList[roomNum] = occurrences			
+			end	
+			lootDB:close()
+					   
+			for key, value in ipairs(results) do									  							
+				local kills = mobList[value.uid]
+				if (kills ~= nil) then
+					value.freq = kills
+				else
+					value.freq = 0
+				end	
+			end				
+		end
+		
+		print_rooms(results)
+	end
+	
+	function IPRINT_ROOMS(json)
+		-- load serialize.save_simple data
+		luastmt = "gPrintRooms = " .. json
+		assert (loadstring (luastmt or "")) ()
+		
+		print_rooms(gPrintRooms)
+	end
+	
+	-- uses results{ areaid, area, info, name, uid, freq }
+	function print_rooms(results)
+		-- print results
+		gotoList = {}
+		mapper_area_index = 0
+		local last_area = ""
+
+		DebugTPrint("results", results)
+
+		if (USER_show_help == "true") then
+			-- ColourNote("Gray", "", "Type 'go <Index>' or click link, to go to that room")
+			--ColourNote("Gray", "", "  Index   Room Name   (uid)")
+			ColourNote("Gray", "", "-------------------------------------")
+		end
+		
+		for key, value in ipairs(results) do
+			DebugNote("area: " .. value.areaid )
+			
+			if (last_area ~= value.areaid) then
+			
+				if (mapper_area_index == 0) then
+					local areaLine = string.format("~~~ %s %s", 
+						mapper_area_index, 
+						value.areaid)
+					Hyperlink("go " .. mapper_area_index, areaLine, "go to area " .. value.areaid, "silver", "black", 0)
+					gotoList[mapper_area_index] = value.areaid
+					
+					mapper_area_index = mapper_area_index + 1
+				else
+					local areaLine = string.format("~~~   %s", value.areaid)
+					Hyperlink("xrt " .. value.areaid, areaLine, "go to area " .. value.areaid, "silver", "black", 0)
+				end				
+				print("")
+				last_area = value.areaid				
+			end
+		
+			local colourString = "lightblue"
+			if (value.freq ~= nil and value.freq > 0) then colourString = "#00FF00" end		
+			local line1 = string.format("~~~ %s ", 
+				padRight(mapper_area_index, 3, " "))
+			Hyperlink("go " .. mapper_area_index, line1, "go to item " .. mapper_area_index, colourString, "black", 0)					
+			
+			-- mob frequency
+			if (value.freq ~= nil and value.freq > 0) then
+				ColourTell ("#00FF00", "black", "(" .. value.freq .. ") ")
+			end
+			
+			-- pk
+			if (value.info ~= nil and string.find(value.info, "pk") ~= nil) then
+				ColourTell ("Red", "black", "[PK]")
+			end
+			
+			-- norecall
+			if (value.recall ~= nil and value.recall == 1) then
+				ColourTell ("darkorange", "black", "[R]")
+			end
+			
+			--noportal
+			if (value.recall ~= nil and value.portal == 1) then
+				ColourTell ("darkorange", "black", "[P]")
+			end					
+			
+			local line2 = string.format("%s  (%s) ", 
+				padRight(string.gsub(value.name, "@[a-zA-Z]", ""), 20, " "), 
+				value.uid)
+			Hyperlink("go " .. mapper_area_index, line2, "go to item " .. mapper_area_index, "lightblue", "black", 0)					
+			
+			Hyperlink("mapper where " .. value.uid, 
+				"   {?}", 
+				"click for speedwalk to this room", 
+				"LightSteelBlue ", 
+				"black", 
+				0)
+			gotoList[mapper_area_index] = value.uid
+			
+			print("")
+			mapper_area_index = mapper_area_index + 1
+		end
+			
+
+		if (mapper_area_index == 0) then
+			ColourNote("darkorange", "", "No matching rooms found.")
+		end
+		
+		if (USER_show_help == "true") then
+			ColourNote("Gray", "", "-------------------------------------")
+		end	
+
+	end
+
+	function map_purgeroom (name, line, wildcards)
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		Note(string.format ("delete from exits WHERE fromuid = %s;", fixsql(currentRoom.roomid)))
+		dbcheck (db:execute (string.format ("delete from exits WHERE fromuid = %s;", fixsql(currentRoom.roomid))))
+		Note(string.format ("delete from exits WHERE touid = %s;", fixsql(currentRoom.roomid)))
+		dbcheck (db:execute (string.format ("delete from exits WHERE touid = %s;", fixsql(currentRoom.roomid))))
+		Note(string.format ("delete from rooms_lookup WHERE uid = %s;", fixsql(currentRoom.roomid)))
+		dbcheck (db:execute (string.format ("delete from rooms_lookup WHERE uid = %s;", fixsql(currentRoom.roomid))))
+		Note(string.format ("delete from rooms WHERE uid = %s;", fixsql(currentRoom.roomid)))
+		dbcheck (db:execute (string.format ("delete from rooms WHERE uid = %s;", fixsql(currentRoom.roomid))))
+		db:close_vm()
+		
+		ColourNote("darkorange", "", "Purged room (" .. currentRoom.roomid .. ") from the mapper database.")
+	end
+
+	local cp_simulate_toggle = 0
+	function cp_simulate(name, line, wildcards)	
+
+		Simulate("\n")	
+
+		if (cp_simulate_toggle == 0) then
+			Simulate("You still have to kill * Isscheburqua (Insanitaria)\n")
+			Simulate("You still have to kill * a rook citizen (Avian Kingdom)\n")
+			Simulate("You still have to kill * Lea, the farmer's daughter (Farmyard)\n")
+			Simulate("You still have to kill * a rook citizen (Nesting Home)\n")
+			Simulate("You still have to kill * a demon school student (The School of Horror)\n")
+			Simulate("You still have to kill * a hookle fish (Black Lagoon)\n")
+			Simulate("You still have to kill * Harry (Unknown Tower - Dead)\n")
+			Simulate("You still have to kill * a former court jester (The Labyrinth)\n")
+			Simulate("You still have to kill * Parent (The Kitchen)\n")
+			Simulate("You still have to kill * a wealth redistribution specialist (Empyrean, Streets of Downfall)\n")
+			Simulate("You still have to kill * the reaching thorns (Eternal Autumn)\n")
+			Simulate("You still have to kill * Redtooth (Mossflower Wood - Dead)\n")
+			Simulate("You still have to kill * Castle Guard (Rebellion of the Nix)\n")
+			Simulate("You still have to kill * Jules (The Amazon Nation)\n")
+			Simulate("You still have to kill * an earth fiend (The Broken Halls of Horath)\n")
+			Simulate("You still have to kill * the spirit of Bakarne (The Empire of Aiighialla)\n")
+			Simulate("You still have to kill * Elfgar Sous-Fled (Some Place)\n")
+			Simulate("You still have to kill * the heart of a sandstorm (Living Mines of Dak'Tai)\n")
+			cp_simulate_toggle = 1
+		else
+			Simulate("You still have to kill * a former court jester (The Labyrinth)\n")
+			Simulate("You still have to kill * the heart of a sandstorm (Buried in the Great Desert's unrelenting dunes)\n")
+			Simulate("You still have to kill * Parent (The Kitchen)\n")
+			Simulate("You still have to kill * a rhino seraph (A Corridor of Cinnamon and Silver)\n")
+			Simulate("You still have to kill * A sprite prisoner (A cell)\n")
+		
+			cp_simulate_toggle = 0
+		end
+		Simulate("Note: Dead means that the target is dead, not that you have killed it.\n")
+		Simulate("\n")
+		Simulate("You have 6 days, 23 hours and 56 minutes left to finish this campaign.\n")
+		Simulate("\n")	
+
+	end
+
+	
+	local gq_simulate_toggle = 0
+	function gq_simulate(name, line, wildcards)	
+
+		Simulate("\n")	
+
+		if (gq_simulate_toggle == 0) then
+			Simulate("You still have to kill 1 * Isscheburqua (Insanitaria)\n")
+			Simulate("You still have to kill 1 * a rook citizen (Avian Kingdom)\n")
+			Simulate("You still have to kill 1 * Lea, the farmer's daughter (Farmyard)\n")
+			Simulate("You still have to kill 1 * a rook citizen (Nesting Home)\n")
+			Simulate("You still have to kill 1 * a demon school student (The School of Horror)\n")
+			Simulate("You still have to kill 1 * a hookle fish (Black Lagoon)\n")
+			Simulate("You still have to kill 1 * Harry (Unknown Tower - Dead)\n")
+			Simulate("You still have to kill 1 * a former court jester (The Labyrinth)\n")
+			Simulate("You still have to kill 1 * Parent (The Kitchen)\n")
+			Simulate("You still have to kill 1 * a wealth redistribution specialist (Empyrean, Streets of Downfall)\n")
+			Simulate("You still have to kill 1 * the reaching thorns (Eternal Autumn)\n")
+			Simulate("You still have to kill 1 * Redtooth (Mossflower Wood - Dead)\n")
+			Simulate("You still have to kill 1 * Castle Guard (Rebellion of the Nix)\n")
+			Simulate("You still have to kill 1 * Jules (The Amazon Nation)\n")
+			Simulate("You still have to kill 1 * an earth fiend (The Broken Halls of Horath)\n")
+			Simulate("You still have to kill 1 * the spirit of Bakarne (The Empire of Aiighialla)\n")
+			Simulate("You still have to kill 1 * Elfgar Sous-Fled (Some Place)\n")
+			Simulate("You still have to kill 1 * the heart of a sandstorm (Living Mines of Dak'Tai)\n")
+			gq_simulate_toggle = 1
+		else
+			Simulate("You still have to kill 1 * a former court jester (The Labyrinth)\n")
+			Simulate("You still have to kill 1 * the heart of a sandstorm (Buried in the Great Desert's unrelenting dunes)\n")			
+			Simulate("You still have to kill 1 * Blue Dragon (An Oasis)\n")
+			Simulate("You still have to kill 1 * kyoob (The Cross)\n")
+			Simulate("You still have to kill 1 * a rhino seraph (A Corridor of Cinnamon and Silver)\n")
+			Simulate("You still have to kill 1 * A sprite prisoner (A cell)\n")
+		
+			gq_simulate_toggle = 0
+		end
+		Simulate("Note: Dead means that the target is dead, not that you have killed it.\n")
+		Simulate("\n")
+		Simulate("You have 6 days, 23 hours and 56 minutes left to finish this campaign.\n")
+		Simulate("\n")	
+
+	end
+	-------- Area level capture -------
+
+
+	--Commander Barcett tells you ' Good luck in your campaign!''
+
+	function area_index_start_gag(name, line, wildcards)	
+		DebugNote("area_index_start_gag - " .. wildcards[1] .. ":" .. wildcards[2])
+		if (wildcards[1] == "0" and wildcards[2] == "298") then
+			EnableTrigger("trg_area_index_start", true)
+			EnableTrigger("trg_area_index_line", false)
+			EnableTrigger("trg_area_index_end", false)
+			EnableTrigger("trg_area_index_gag1", true)
+			EnableTrigger("trg_area_index_gag2", true)
+		else -- not an area index command
+			EnableTrigger("trg_area_index_start", false)
+			EnableTrigger("trg_area_index_line", false)
+			EnableTrigger("trg_area_index_end", false)
+			EnableTrigger("trg_area_index_gag1", false)
+			EnableTrigger("trg_area_index_gag2", false)
+		end
+	end
+
+	function area_index_start(name, line, wildcards)
+		DebugNote("area_index_start")
+		EnableTrigger("trg_area_index_start", false)
+		EnableTrigger("trg_area_index_line", true)
+		EnableTrigger("trg_area_index_end", true)
+		
+		area_range = {}
+		
+		ColourNote("DarkOrange", "", "*** Indexing area levels...")
+	end
+
+	function area_index_line(name, line, wildcards)
+		DebugNote("area_index_line")
+
+		area_range[Trim(wildcards.area)] = { 
+			area = Trim(wildcards.area), 
+			min = tonumber(Trim(wildcards.min)), 
+			max = tonumber(Trim(wildcards.max)),
+			lock = tonumber(Trim(wildcards.lock)) or 0 }		
+		--tprint(area_range[wildcards.area])
+
+	end
+
+	function area_index_end(name, line, wildcards)
+		DebugNote("area_index_end")
+
+		EnableTrigger("trg_area_index_start", false)
+		EnableTrigger("trg_area_index_line", false)
+		EnableTrigger("trg_area_index_end", false)
+		EnableTrigger("trg_area_index_gag1", false)
+		EnableTrigger("trg_area_index_gag2", false)
+
+		ColourNote("DarkOrange", "", "*** Area levels indexed!")
+		
+		DoAfterSpecial(2, "xset resume page size", sendto.execute)
+
+	end
+
+	------ Execute in Area ------
+
+	local execute_in_area_array = {}
+
+	function execute_in_area(id, areaId, functionPointer)
+
+		execute_in_area_array[id] = { 
+			areaId = areaId, 
+			func = functionPointer, 
+			index = 0, 
+			active = true,
+			lastState = 3, -- standing
+			standIndex = 0 -- count of stands in a row
+			}
+		--tprint(execute_in_area_array)
+		EnableTimer("execute_in_area_timer", true)
+
+	end
+
+	function execute_in_area_tick(name, line, wildcards)
+
+		local localRoom = currentRoom
+		local localState
+
+
+		-- thread safety
+		if (localRoom == nil) then
+			DebugNote("Unknown Room")
+			return
+		end
+		
+		if (char_status == nill) then
+			DebugNote("Unknown char status")
+			return
+		else
+			localState = tonumber(char_status.state)
+		end
+
+		local isActive = false
+		
+		--tprint(execute_in_area_array)
+
+		for index, value in pairs(execute_in_area_array) do
+		
+			DebugNote("loop - " .. index)
+			if (value.active == true) then
+		
+				value.index = value.index + 1
+
+				if (value.index > 100) then
+					value.active = false
+					print("** aborting quickwhere timer for " .. index .. ", took too long to get to destination")
+					
+				else
+
+					DebugNote("state:" .. localState .. ",:" .. value.areaId .. "==" .. localRoom.areaid)
+
+					if ((localState == 3 and value.lastState == 3) 
+						and value.areaId == localRoom.areaid) then
+
+						-- skip first timer tick
+						value.index = value.index + 1
+						value.standIndex = value.standIndex + 1
+						if (value.standIndex < 2) then
+							DebugNote("skip - index:" .. value.index)
+						else
+							DebugNote("executing - index:" .. value.index)
+							value.func()
+							value.active = false						
+						end
+					else
+						-- still moving.. reset index
+						value.standIndex = 0
+					end
+				end
+			end
+			
+			value.lastState = localState
+			
+			if (value.active == true) then
+				isActive = true
+			end
+			
+		end
+		
+		-- no timer items active.. disable
+		if (isActive == false) then
+			DebugNote("disable timer")
+			EnableTimer("execute_in_area_timer", false)
+		end
+	end
+
+	----------- EXTERNAL CALLOUTS -----------------------------
+	
+	function remote_guess_mob_name(mobName, areaId, broadcast)
+
+		DebugNote("remote_guess_mob_name call:" .. mobName .. ":" .. areaId)
+	
+		local rc, mobGuess, subMob = CallPlugin(
+			search_destroy_id, 
+			"IGuessMobNameBroadcast", 
+			mobName,
+			areaId)
+			
+		if (subMob ~= nil) then
+			DebugNote(subMob)
+		end
+		
+		DebugNote("remote_guess_mob_name return:" .. mobGuess)
+		return mobGuess
+
+	end
+	
+
+	------ Utils ------
+
+	function padRight(text, length, padChar)
+
+		local padding = length - string.len(text)
+		for i = 1, padding do
+			text = text .. padChar
+		end
+
+		return text
+	end
+
+	function sanitize_filename(str)
+		str = string.gsub(str, "[^%w%s()_-]", "")
+		return str
+	end
+
+	function quote(str)
+		return "\""..str.."\""
+	end
+
+	function dbcheck(code)
+
+		if code ~= sqlite3.OK and    -- no error
+			code ~= sqlite3.ROW and   -- completed OK with another row of data
+			code ~= sqlite3.DONE then -- completed OK, no more rows
+			local err = db:errmsg ()  -- the rollback will change the error message
+			db:exec("ROLLBACK")      -- rollback any transaction to unlock the database
+			error (err, 2)            -- show error in caller's context
+		end -- if
+
+	end -- dbcheck
+
+	function fixsql(s)
+
+		if s then
+			return "'" .. (string.gsub (s, "'", "''")) .. "'" -- replace single quotes with two lots of single quotes
+		else
+			return "NULL"
+		end -- if
+	end -- fixsql
+
+	function fixbool(b)
+		if b then
+			return 1
+		else
+			return 0
+		end -- if
+	end -- fixbool
+
+	function split(line, delim)
+
+		local result = {}
+		local index = 1
+
+		for token in string.gmatch(line, delim) do
+			result[index] = token
+			index = index + 1
+		end
+
+		return result
+	end
+
+	function set_check_vidblain(name, line, wildcards)
+
+	  if (USER_check_vidblain == "true") then
+		USER_check_vidblain = "false"
+	  else
+		USER_check_vidblain = "true"
+	  end
+
+	  local msg = "off"
+	  if (USER_check_vidblain == "true") then
+		msg = "on"
+	  end
+	  ColourNote ("darkorange", "", "No-portal vidblain assistance: " .. msg)
+	end
+
+	function OnPluginSaveState()
+
+		SetVariable("XRunToCheckVidblain", USER_check_vidblain)
+
+	end
+
+	--------- Sql Execution ------------
+
+	function RunSql(name, line, wildcards)
+
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		local index = 0
+		local sql = wildcards.sql
+		ColourNote("darkorange", "", "running :" .. sql)
+		for row in db:nrows(sql) do
+			index = index + 1
+			print("----------- record " .. index .. " -----------" )
+			tprint(row)
+	--		print (serialize.save ("row", row))
+		end
+		
+		db:close_vm()
+	end
+
+	function ExecSql (name, line, wildcards)
+		local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
+		local db = assert(sqlite3.open(worldPath .. ".db"))
+
+		Note("executing " .. wildcards.sql)
+	--	dbcheck (db:execute (fixsql(wildcards.sql)))
+		db:execute(fixsql(wildcards.sql))
+
+		db:close_vm()
+		Note("ok")
+	end
+
+	-------------- DEBUG --------------------
+
+	function ext_debug(name, line, wildcards)
+		if (showDebug == 0) then
+			showDebug = 1
+		else
+			showDebug = 0
+		end
+		Note("Ext debug:" .. showDebug)
+	end	
+	
+	function DebugNote(text)
+		if (showDebug == 1) then
+			Note("Extender ~ " .. text)
+		end
+	end
+
+	function DebugTPrint(title, obj)
+		if (showDebug == 1) then
+			DebugNote(title .. " : " .. serialize.save_simple(obj))
+		end
+	end
+
+
+	-------------- INSTALL MESSAGE ------------------
+
+	function InstallMessage()
+		ColourNote("MediumSeaGreen", "", "+=======================================================+")
+		ColourNote("MediumSeaGreen", "", "+ Extender Installed - type 'extender help' for options +")
+		ColourNote("MediumSeaGreen", "", "+=======================================================+")
+	end
+
+	InstallMessage()
+
+
+]]>
+</script>
+
+</muclient>
+
+
+<!-- BUGS
+
+
+-->

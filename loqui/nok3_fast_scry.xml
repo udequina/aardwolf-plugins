@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+<plugin
+   name="Nok3_Fast_Scry"
+   author="Nokfah"
+   id="a5b531a03ad80b4093eabbfd"
+   language="Lua"
+   save_state="y"
+   purpose="Scry and them xma the room"    
+>
+</plugin>
+
+<triggers>
+	<trigger
+		name="scry"
+		enabled="y"
+		match="^Through the mist you see ....................................$"	
+		regexp="y"
+		send_to="12"
+	>
+	<send>
+		EnableTrigger("capture_room", true)
+	</send>
+	</trigger>
+	
+	<trigger
+		name="capture_room"
+		enabled="n"
+		match="(.*)"	
+		regexp="y"
+		send_to="12"
+		script="CaptureRoom"
+	>	
+	</trigger>
+</triggers>
+
+<script>
+<![CDATA[
+function OnPluginInstall()		
+	ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))			
+end
+
+function CaptureRoom(name, line, wildcards)
+	ColourNote("orange", "", "lookup: " .. wildcards[1])
+	Execute("xma " .. string.gsub(wildcards[1], "(G)", ""))
+	EnableTrigger("capture_room", false)
+end
+
+]]>
+</script>
+</muclient>

@@ -1,0 +1,1120 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+<!-- MuClient version 4.98 -->
+<!-- Written by Nick Gammon -->
+<!-- Home Page: http://www.mushclient.com/ -->
+
+<!-- Plugin state saved. Plugin: "Nok3_WW_Mapper_Extender". World: "Aardwolf". -->
+
+<muclient>
+
+<!-- variables -->
+
+<variables
+   muclient_version="4.98"
+   world_file_version="15"
+  >
+  <variable name="XRunToCheckVidblain">false</variable>
+  <variable name="areaStartRooms">{
+  pompeii = {
+    areaname = "Pompeii",
+    roomid = "43",
+    },
+  cats = {
+    areaname = "Sheila's Cat Sanctuary",
+    roomid = "40900",
+    },
+  remcon = {
+    areaname = "The Reman Conspiracy",
+    roomid = "25880",
+    },
+  believer = {
+    areaname = "The Path of the Believer",
+    roomid = "25937",
+    },
+  lplanes = {
+    areaname = "The Lower Planes",
+    roomid = "266",
+    },
+  landofoz = {
+    areaname = "The Land of Oz",
+    roomid = "510",
+    },
+  nenukon = {
+    areaname = "Nenukon and the Far Country",
+    roomid = "31784",
+    },
+  empire = {
+    areaname = "The Empire of Aiighialla",
+    roomid = "32262",
+    },
+  partroxis = {
+    areaname = "The Partroxis",
+    roomid = "5862",
+    },
+  vale = {
+    areaname = "Sundered Vale",
+    roomid = "1033",
+    },
+  earthplane = {
+    areaname = "Earth Plane 4",
+    roomid = "1354",
+    },
+  caravan = {
+    areaname = "Gypsy Caravan",
+    roomid = "45536",
+    },
+  songpalace = {
+    areaname = "The Palace of Song",
+    roomid = "47013",
+    },
+  horizon = {
+    areaname = "Nebulous Horizon",
+    roomid = "31943",
+    },
+  jenny = {
+    areaname = "Jenny's Tavern",
+    roomid = "29637",
+    },
+  kearvek = {
+    areaname = "The Keep of Kearvek",
+    roomid = "29722",
+    },
+  citadel = {
+    areaname = "The Flying Citadel",
+    roomid = "14997",
+    },
+  darklight = {
+    areaname = "The DarkLight",
+    roomid = "19640",
+    },
+  darkside = {
+    areaname = "The Darkside of the Fractured Lands",
+    roomid = "15061",
+    },
+  stuff = {
+    areaname = "The Stuff of Shadows",
+    roomid = "40400",
+    },
+  hatchling = {
+    areaname = "Hatchling Aerie",
+    roomid = "34652",
+    },
+  aylor = {
+    areaname = "The Grand City of Aylor",
+    roomid = "32418",
+    },
+  daoine = {
+    areaname = "The Underground Hall",
+    roomid = "30950",
+    },
+  dunoir = {
+    areaname = "Mount duNoir",
+    roomid = "14221",
+    },
+  newthalos = {
+    areaname = "New Thalos",
+    roomid = "24070",
+    },
+  lab = {
+    areaname = "Chaprenula's Laboratory",
+    roomid = "28683",
+    },
+  sanguine = {
+    areaname = "The Sanguine Tavern",
+    roomid = "15442",
+    },
+  mistridge = {
+    areaname = "The Covenant of Mistridge",
+    roomid = "4473",
+    },
+  duskvalley = {
+    areaname = "Dusk Valley",
+    roomid = "37301",
+    },
+  fireswamp = {
+    areaname = "The Fire Swamp",
+    roomid = "34750",
+    },
+  stormhaven = {
+    areaname = "The Ruins of Stormhaven",
+    roomid = "20622",
+    },
+  sanctum = {
+    areaname = "The Blood Sanctum",
+    roomid = "15305",
+    },
+  slaughter = {
+    areaname = "The Slaughter House",
+    roomid = "1601",
+    },
+  deneria = {
+    areaname = "Realm of Deneria",
+    roomid = "35005",
+    },
+  dhalgora = {
+    areaname = "Dhal'Gora Outlands",
+    roomid = "16755",
+    },
+  entropy = {
+    areaname = "The Archipelago of Entropy",
+    roomid = "29772",
+    },
+  storm = {
+    areaname = "Storm Mountain",
+    roomid = "6305",
+    },
+  kultiras = {
+    areaname = "Kul Tiras",
+    roomid = "31162",
+    },
+  promises = {
+    areaname = "Foolish Promises",
+    roomid = "25817",
+    },
+  labyrinth = {
+    areaname = "The Labyrinth",
+    roomid = "31404",
+    },
+  goblinpath = {
+    areaname = "The Goblin Path",
+    roomid = "25972",
+    },
+  fortress = {
+    areaname = "The Goblin Fortress",
+    roomid = "31834",
+    },
+  andarin = {
+    areaname = "The Blighted Tundra of Andarin",
+    roomid = "2395",
+    },
+  dread = {
+    areaname = "Dread Tower",
+    roomid = "26074",
+    },
+  wonders = {
+    areaname = "Seven Wonders",
+    roomid = "32981",
+    },
+  callhero = {
+    areaname = "The Call of Heroes",
+    roomid = "33031",
+    },
+  winter = {
+    areaname = "Winterlands",
+    roomid = "1305",
+    },
+  seekers = {
+    areaname = "The Fortress of Knowledge",
+    roomid = "14141",
+    },
+  raukora = {
+    areaname = "The Blood Opal of Rauko'ra",
+    roomid = "6040",
+    },
+  kobaloi = {
+    areaname = "Keep of the Kobaloi",
+    roomid = "10688",
+    },
+  sohtwo = {
+    areaname = "The School of Horror",
+    roomid = "30766",
+    },
+  arisian = {
+    areaname = "Arisian Realm",
+    roomid = "28145",
+    },
+  vanir = {
+    areaname = "The Halls of Vanir",
+    roomid = "878",
+    },
+  illoria = {
+    areaname = "The Tournament of Illoria",
+    roomid = "10447",
+    },
+  uprising = {
+    areaname = "The Uprising",
+    roomid = "15382",
+    },
+  arena = {
+    areaname = "The Gladiator's Arena",
+    roomid = "25769",
+    },
+  gallows = {
+    areaname = "Gallows Hill",
+    roomid = "4342",
+    },
+  vlad = {
+    areaname = "Castle Vlad-Shamir",
+    roomid = "15970",
+    },
+  gaardian = {
+    areaname = "Midgaardian Publishing House",
+    roomid = "49335",
+    },
+  crusaders = {
+    areaname = "The Crusader Clan",
+    roomid = "31123",
+    },
+  adaldar = {
+    areaname = "Battlefields of Adaldar",
+    roomid = "34447",
+    },
+  watchmen = {
+    areaname = "The World of the Watchmen",
+    roomid = "32342",
+    },
+  rebellion = {
+    areaname = "Rebellion of the Nix",
+    roomid = "10306",
+    },
+  weather = {
+    areaname = "Weather Observatory",
+    roomid = "40497",
+    },
+  fens = {
+    areaname = "The Curse of the Midnight Fens",
+    roomid = "16526",
+    },
+  zangar = {
+    areaname = "Zangar's Demonic Grotto",
+    roomid = "6162",
+    },
+  atlantis = {
+    areaname = "Atlantis",
+    roomid = "10578",
+    },
+  goldrush = {
+    areaname = "Gold Rush",
+    roomid = "15028",
+    },
+  gnomalin = {
+    areaname = "Cloud City of Gnomalin",
+    roomid = "34395",
+    },
+  avian = {
+    areaname = "Avian Kingdom",
+    roomid = "4334",
+    },
+  glimmerdim = {
+    areaname = "Brightsea and Glimmerdim",
+    roomid = "26293",
+    },
+  manor1 = {
+    areaname = "The Aardwolf Real Estates",
+    roomid = "14460",
+    },
+  peninsula = {
+    areaname = "Tairayden Peninsula",
+    roomid = "35700",
+    },
+  infamy = {
+    areaname = "The Realm of Infamy",
+    roomid = "26641",
+    },
+  sahuagin = {
+    areaname = "The Abyssal Caverns of Sahuagin",
+    roomid = "34592",
+    },
+  salt = {
+    areaname = "The Great Salt Flats",
+    roomid = "4538",
+    },
+  ddoom = {
+    areaname = "Desert Doom",
+    roomid = "4195",
+    },
+  raga = {
+    areaname = "Raganatittu",
+    roomid = "19861",
+    },
+  origins = {
+    areaname = "Tribal Origins",
+    roomid = "35900",
+    },
+  northstar = {
+    areaname = "Northstar",
+    roomid = "11129",
+    },
+  losttime = {
+    areaname = "Island of Lost Time",
+    roomid = "28584",
+    },
+  solan = {
+    areaname = "The Town of Solan",
+    roomid = "23713",
+    },
+  blackrose = {
+    areaname = "Black Rose",
+    roomid = "1818",
+    },
+  horath = {
+    areaname = "The Broken Halls of Horath",
+    roomid = "92",
+    },
+  crynn = {
+    areaname = "Crynn's Church",
+    roomid = "43838",
+    },
+  kingsholm = {
+    areaname = "Kingsholm",
+    roomid = "27522",
+    },
+  oradrin = {
+    areaname = "Oradrin's Chosen",
+    roomid = "25436",
+    },
+  ruins = {
+    areaname = "The Ruins of Diamond Reach",
+    roomid = "16853",
+    },
+  wizards = {
+    areaname = "War of the Wizards",
+    roomid = "31304",
+    },
+  manormount = {
+    areaname = "Mountain View Estates",
+    roomid = "39449",
+    },
+  woodelves = {
+    areaname = "The Wood Elves of Nalondir",
+    roomid = "32103",
+    },
+  zodiac = {
+    areaname = "Realm of the Zodiac",
+    roomid = "15866",
+    },
+  masq = {
+    areaname = "Masquerade Island",
+    roomid = "29839",
+    },
+  talsa = {
+    areaname = "The Empire of Talsa",
+    roomid = "26917",
+    },
+  hades = {
+    areaname = "Entrance to Hades",
+    roomid = "29160",
+    },
+  chessboard = {
+    areaname = "The Chessboard",
+    roomid = "25510",
+    },
+  thieves = {
+    areaname = "Den of Thieves",
+    roomid = "18",
+    },
+  rosewood = {
+    areaname = "Rosewood Castle",
+    roomid = "6900",
+    },
+  qong = {
+    areaname = "Qong",
+    roomid = "16152",
+    },
+  abend = {
+    areaname = "The Dark Continent, Abend",
+    roomid = "24856",
+    },
+  cougarian = {
+    areaname = "The Cougarian Queendom",
+    roomid = "14310",
+    },
+  bard = {
+    areaname = "The Bard Clan",
+    roomid = "30525",
+    },
+  deathtrap = {
+    areaname = "Deathtrap Dungeon",
+    roomid = "1767",
+    },
+  xylmos = {
+    areaname = "Xyl's Mosaic",
+    roomid = "421",
+    },
+  alehouse = {
+    areaname = "Wayward Alehouse",
+    roomid = "885",
+    },
+  stronghold = {
+    areaname = "Dark Elf Stronghold",
+    roomid = "20573",
+    },
+  maelstrom = {
+    areaname = "The Maelstrom",
+    roomid = "38051",
+    },
+  gauntlet = {
+    areaname = "The Gauntlet",
+    roomid = "31646",
+    },
+  romani = {
+    areaname = "A Clearing in the Woods",
+    roomid = "24180",
+    },
+  desert = {
+    areaname = "The Desert Prison",
+    roomid = "20187",
+    },
+  ketu = {
+    areaname = "Ketu Uplands",
+    roomid = "35100",
+    },
+  hedge = {
+    areaname = "Hedgehogs' Paradise",
+    roomid = "15146",
+    },
+  umari = {
+    areaname = "Umari's Castle",
+    roomid = "36645",
+    },
+  tombs = {
+    areaname = "The Relinquished Tombs",
+    roomid = "15385",
+    },
+  dundoom = {
+    areaname = "The Dungeon of Doom",
+    roomid = "25661",
+    },
+  lidnesh = {
+    areaname = "The Forest of Li'Dnesh",
+    roomid = "27994",
+    },
+  ftii = {
+    areaname = "Faerie Tales II",
+    roomid = "26673",
+    },
+  terra = {
+    areaname = "The Cracks of Terra",
+    roomid = "19678",
+    },
+  mesolar = {
+    areaname = "The Continent of Mesolar",
+    roomid = "11829",
+    },
+  hoard = {
+    areaname = "Swordbreaker's Hoard",
+    roomid = "1677",
+    },
+  bonds = {
+    areaname = "Unearthly Bonds",
+    roomid = "23412",
+    },
+  sendhian = {
+    areaname = "Adventures in Sendhia",
+    roomid = "20286",
+    },
+  stone = {
+    areaname = "The Fabled City of Stone",
+    roomid = "11385",
+    },
+  hawklord = {
+    areaname = "The Realm of the Hawklords",
+    roomid = "40551",
+    },
+  cathedral = {
+    areaname = "The Old Cathedral",
+    roomid = "27496",
+    },
+  fractured = {
+    areaname = "The Fractured Lands",
+    roomid = "17031",
+    },
+  terramire = {
+    areaname = "Fort Terramire",
+    roomid = "4492",
+    },
+  manorwoods = {
+    areaname = "Shady Acres Estates",
+    roomid = "44377",
+    },
+  gwillim = {
+    areaname = "The Trouble with Gwillimberry",
+    roomid = "25974",
+    },
+  agroth = {
+    areaname = "The Marshlands of Agroth",
+    roomid = "11027",
+    },
+  cradle = {
+    areaname = "Cradlebrook",
+    roomid = "11302",
+    },
+  yurgach = {
+    areaname = "The Yurgach Domain",
+    roomid = "29493",
+    },
+  wyrm = {
+    areaname = "The Council of the Wyrm",
+    roomid = "28847",
+    },
+  fayke = {
+    areaname = "All in a Fayke Day",
+    roomid = "30418",
+    },
+  caldera = {
+    areaname = "The Icy Caldera of Mauldoon",
+    roomid = "26341",
+    },
+  desolation = {
+    areaname = "The Mountains of Desolation",
+    roomid = "19531",
+    },
+  greece = {
+    areaname = "Ancient Greece",
+    roomid = "2161",
+    },
+  manorisle = {
+    areaname = "The Aardwolf Isle Estates",
+    roomid = "6836",
+    },
+  knossos = {
+    areaname = "The Great City of Knossos",
+    roomid = "28194",
+    },
+  coral = {
+    areaname = "The Coral Kingdom",
+    roomid = "4563",
+    },
+  verume = {
+    areaname = "Jungles of Verume",
+    roomid = "30599",
+    },
+  autumn = {
+    areaname = "Eternal Autumn",
+    roomid = "13905",
+    },
+  firebird = {
+    areaname = "Realm of the Firebird",
+    roomid = "32884",
+    },
+  firenation = {
+    areaname = "Realm of the Sacred Flame",
+    roomid = "41879",
+    },
+  shouggoth = {
+    areaname = "The Temple of Shouggoth",
+    roomid = "34087",
+    },
+  chaos = {
+    areaname = "The Realm of Chaos",
+    roomid = "28910",
+    },
+  sanctity = {
+    areaname = "Sanctity of Eternal Damnation",
+    roomid = "10519",
+    },
+  earthlords = {
+    areaname = "The Earth Lords",
+    roomid = "42000",
+    },
+  birthday = {
+    areaname = "Aardwolf Birthday Area",
+    roomid = "10920",
+    },
+  tol = {
+    areaname = "The Tree of Life",
+    roomid = "16324",
+    },
+  legend = {
+    areaname = "Land of Legend",
+    roomid = "16258",
+    },
+  dynasty = {
+    areaname = "The Eighteenth Dynasty",
+    roomid = "30799",
+    },
+  reme = {
+    areaname = "The Imperial City of Reme",
+    roomid = "32699",
+    },
+  village = {
+    areaname = "A Peaceful Giant Village",
+    roomid = "30849",
+    },
+  cove = {
+    areaname = "Kiksaadi Cove",
+    roomid = "49941",
+    },
+  nynewoods = {
+    areaname = "The Nyne Woods",
+    roomid = "23562",
+    },
+  sennarre = {
+    areaname = "Sen'narre Lake",
+    roomid = "15489",
+    },
+  cataclysm = {
+    areaname = "The Cataclysm",
+    roomid = "19976",
+    },
+  quarry = {
+    areaname = "Gnoll's Quarry",
+    roomid = "23511",
+    },
+  wildwood = {
+    areaname = "Wildwood",
+    roomid = "321",
+    },
+  ninehells = {
+    areaname = "The Nine Hells",
+    roomid = "4615",
+    },
+  infest = {
+    areaname = "The Infestation",
+    roomid = "16168",
+    },
+  beer = {
+    areaname = "The Land of the Beer Goblins",
+    roomid = "20060",
+    },
+  zyian = {
+    areaname = "The Dark Temple of Zyian",
+    roomid = "726",
+    },
+  camps = {
+    areaname = "Tournament Camps",
+    roomid = "4713",
+    },
+  manorsea = {
+    areaname = "Seaside Height Estates",
+    roomid = "35003",
+    },
+  petstore = {
+    areaname = "Giant's Pet Store",
+    roomid = "995",
+    },
+  kerofk = {
+    areaname = "Kerofk",
+    roomid = "16519",
+    },
+  orlando = {
+    areaname = "Hotel Orlando",
+    roomid = "30331",
+    },
+  omentor = {
+    areaname = "The Witches of Omen Tor",
+    roomid = "15578",
+    },
+  carnivale = {
+    areaname = "Olde Worlde Carnivale",
+    roomid = "28634",
+    },
+  melody = {
+    areaname = "Art of Melody",
+    roomid = "14170",
+    },
+  amazon = {
+    areaname = "The Amazon Nation",
+    roomid = "1404",
+    },
+  gilda = {
+    areaname = "Gilda And The Dragon",
+    roomid = "4254",
+    },
+  xmas = {
+    areaname = "Christmas Vacation",
+    roomid = "6212",
+    },
+  deadlights = {
+    areaname = "The Deadlights",
+    roomid = "16855",
+    },
+  reinhold = {
+    areaname = "Castle Reinhold",
+    roomid = "1543",
+    },
+  imperial = {
+    areaname = "Imperial Nation",
+    roomid = "16958",
+    },
+  monastery = {
+    areaname = "The Monastery",
+    roomid = "15756",
+    },
+  temple = {
+    areaname = "The Temple of Shal'indrael",
+    roomid = "31596",
+    },
+  jotun = {
+    areaname = "Jotunheim",
+    roomid = "31505",
+    },
+  zoo = {
+    areaname = "Aardwolf Zoological Park",
+    roomid = "5922",
+    },
+  dsr = {
+    areaname = "Diamond Soul Revelation",
+    roomid = "30029",
+    },
+  bazaar = {
+    areaname = "Onyx Bazaar",
+    roomid = "34451",
+    },
+  helegear = {
+    areaname = "Helegear Sea",
+    roomid = "30699",
+    },
+  doh = {
+    areaname = "Disciples of Hassan Clan Hall",
+    roomid = "16803",
+    },
+  conflict = {
+    areaname = "Thandeld's Conflict",
+    roomid = "27710",
+    },
+  manor = {
+    areaname = "Death's Manor",
+    roomid = "10619",
+    },
+  tao = {
+    areaname = "The Collective Mind of Tao",
+    roomid = "49373",
+    },
+  sandcastle = {
+    areaname = "Sho'aram, Castle in the Sand",
+    roomid = "37700",
+    },
+  amusement = {
+    areaname = "The Amusement Park",
+    roomid = "29364",
+    },
+  icefall = {
+    areaname = "Icefall",
+    roomid = "38701",
+    },
+  verdure = {
+    areaname = "Verdure Estate",
+    roomid = "24120",
+    },
+  mayhem = {
+    areaname = "Artificer's Mayhem",
+    roomid = "1866",
+    },
+  graveyard = {
+    areaname = "The Graveyard",
+    roomid = "28914",
+    },
+  diatz = {
+    areaname = "The Three Pillars of Diatz",
+    roomid = "1258",
+    },
+  lagoon = {
+    areaname = "Black Lagoon",
+    roomid = "30550",
+    },
+  bliss = {
+    areaname = "Wedded Bliss",
+    roomid = "29979",
+    },
+  sagewood = {
+    areaname = "Sagewood Grove",
+    roomid = "28781",
+    },
+  gathering = {
+    areaname = "The Gathering Horde",
+    roomid = "36451",
+    },
+  ascent = {
+    areaname = "The First Ascent",
+    roomid = "43150",
+    },
+  minos = {
+    areaname = "The Shadows of Minos",
+    roomid = "20472",
+    },
+  necro = {
+    areaname = "Necromancers' Guild",
+    roomid = "29922",
+    },
+  cineko = {
+    areaname = "Aerial City of Cineko",
+    roomid = "1503",
+    },
+  dortmund = {
+    areaname = "Dortmund",
+    roomid = "16576",
+    },
+  tanra = {
+    areaname = "Tanra'vea",
+    roomid = "46912",
+    },
+  insan = {
+    areaname = "Insanitaria",
+    roomid = "6850",
+    },
+  childsplay = {
+    areaname = "Child's Play",
+    roomid = "676",
+    },
+  nursing = {
+    areaname = "Ascension Bluff Nursing Home",
+    roomid = "31974",
+    },
+  manor3 = {
+    areaname = "Aardwolf Estates 2000",
+    roomid = "22181",
+    },
+  nanjiki = {
+    areaname = "Nanjiki Ruins",
+    roomid = "11204",
+    },
+  lemdagor = {
+    areaname = "Storm Ships of Lem-Dagor",
+    roomid = "1966",
+    },
+  uplanes = {
+    areaname = "The Upper Planes",
+    roomid = "10835",
+    },
+  wooble = {
+    areaname = "The Wobbly Woes of Woobleville",
+    roomid = "11383",
+    },
+  empyrean = {
+    areaname = "Empyrean, Streets of Downfall",
+    roomid = "13946",
+    },
+  badtrip = {
+    areaname = "A Bad Trip",
+    roomid = "32878",
+    },
+  times = {
+    areaname = "Intrigues of Times Past",
+    roomid = "28463",
+    },
+  immhomes = {
+    areaname = "Immortal Homes",
+    roomid = "26188",
+    },
+  diner = {
+    areaname = "Tumari's Diner",
+    roomid = "36798",
+    },
+  academy = {
+    areaname = "The Aylorian Academy",
+    roomid = "35233",
+    },
+  soh = {
+    areaname = "The School of Horror",
+    roomid = "25614",
+    },
+  volcano = {
+    areaname = "The Silver Volcano",
+    roomid = "6088",
+    },
+  paradise = {
+    areaname = "Paradise Lost",
+    roomid = "29585",
+    },
+  fantasy = {
+    areaname = "Fantasy Fields",
+    roomid = "15205",
+    },
+  hell = {
+    areaname = "Descent to Hell",
+    roomid = "30981",
+    },
+  fields = {
+    areaname = "The Killing Fields",
+    roomid = "29232",
+    },
+  glamdursil = {
+    areaname = "The Glamdursil",
+    roomid = "15719",
+    },
+  underdark = {
+    areaname = "The UnderDark",
+    roomid = "27190",
+    },
+  prosper = {
+    areaname = "Prosper's Island",
+    roomid = "28336",
+    },
+  warzone = {
+    areaname = "The Warzone",
+    roomid = "-1",
+    },
+  siege = {
+    areaname = "Kobold Siege Camp",
+    roomid = "43250",
+    },
+  hodgepodge = {
+    areaname = "A Magical Hodgepodge",
+    roomid = "30469",
+    },
+  chasm = {
+    areaname = "The Chasm and The Catacombs",
+    roomid = "29435",
+    },
+  werewood = {
+    areaname = "The Were Wood",
+    roomid = "30955",
+    },
+  damned = {
+    areaname = "Halls of the Damned",
+    roomid = "10470",
+    },
+  mudwog = {
+    areaname = "Mudwog's Swamp",
+    roomid = "2349",
+    },
+  sirens = {
+    areaname = "Siren's Oasis Resort",
+    roomid = "16299",
+    },
+  ft1 = {
+    areaname = "Faerie Tales",
+    roomid = "1206",
+    },
+  lowlands = {
+    areaname = "Lowlands Paradise '96",
+    roomid = "28044",
+    },
+  nulan = {
+    areaname = "Plains of Nulan'Boar",
+    roomid = "37900",
+    },
+  nottingham = {
+    areaname = "Nottingham",
+    roomid = "11077",
+    },
+  spyreknow = {
+    areaname = "Guardian's Spyre of Knowledge",
+    roomid = "34800",
+    },
+  manorville = {
+    areaname = "Prairie Village Estates",
+    roomid = "35004",
+    },
+  longnight = {
+    areaname = "Into the Long Night",
+    roomid = "26367",
+    },
+  astral = {
+    areaname = "The Astral Travels",
+    roomid = "27883",
+    },
+  tirna = {
+    areaname = "Tir na nOg",
+    roomid = "20147",
+    },
+  limbo = {
+    areaname = "Limbo",
+    roomid = "29973",
+    },
+  aardington = {
+    areaname = "Aardington Estate",
+    roomid = "47509",
+    },
+  anthrox = {
+    areaname = "Anthrox",
+    roomid = "3994",
+    },
+  challenge = {
+    areaname = "Challenge Area",
+    roomid = "27705",
+    },
+  canyon = {
+    areaname = "Canyon Memorial Hospital",
+    roomid = "25550",
+    },
+  wtc = {
+    areaname = "Warrior's Training Camp",
+    roomid = "37893",
+    },
+  ahner = {
+    areaname = "Kingdom of Ahner",
+    roomid = "30129",
+    },
+  yarr = {
+    areaname = "The Misty Shores of Yarr",
+    roomid = "30281",
+    },
+  scarred = {
+    areaname = "The Scarred Lands",
+    roomid = "34036",
+    },
+  snuckles = {
+    areaname = "Snuckles Village",
+    roomid = "181",
+    },
+  annwn = {
+    areaname = "Annwn",
+    roomid = "28963",
+    },
+  drageran = {
+    areaname = "The Drageran Empire",
+    roomid = "25897",
+    },
+  livingmine = {
+    areaname = "Living Mines of Dak'Tai",
+    roomid = "37012",
+    },
+  elemental = {
+    areaname = "Elemental Chaos",
+    roomid = "41624",
+    },
+  takeda = {
+    areaname = "Takeda's Warcamp",
+    roomid = "15952",
+    },
+  cards = {
+    areaname = "House of Cards",
+    roomid = "6256",
+    },
+  laym = {
+    areaname = "Tai'rha Laym",
+    roomid = "6002",
+    },
+  }</variable>
+  <variable name="autofill">false</variable>
+  <variable name="example"></variable>
+  <variable name="kills">3</variable>
+  <variable name="mazeStartRooms">{
+  [19648] = {
+    areaname = "The DarkLight",
+    },
+  [1773] = {
+    areaname = "Deathtrap Dungeon",
+    },
+  [1768] = {
+    areaname = "Deathtrap Dungeon",
+    },
+  [19886] = {
+    areaname = "Raganatittu",
+    },
+  [1785] = {
+    areaname = "Deathtrap Dungeon",
+    },
+  [1781] = {
+    areaname = "Deathtrap Dungeon",
+    },
+  [1777] = {
+    areaname = "Kobold Siege Camp",
+    },
+  [10331] = {
+    areaname = "Rebellion of the Nix",
+    },
+  [16017] = {
+    areaname = "Castle Vlad-Shamir",
+    },
+  [25826] = {
+    areaname = "Foolish Promises",
+    },
+  [31696] = {
+    areaname = "The Gauntlet",
+    },
+  [14965] = {
+    areaname = "The Flying Citadel",
+    },
+  [14316] = {
+    areaname = "The Cougarian Queendom",
+    },
+  }</variable>
+  <variable name="orderby">kills</variable>
+  <variable name="searchtype">x_ht</variable>
+  <variable name="showPK">true</variable>
+</variables>
+</muclient>

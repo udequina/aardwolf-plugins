@@ -1,0 +1,119 @@
+<muclient>
+<plugin
+   name="Room_Reporter"
+   author="Nokfah"
+   id="9a22971452b19ba9635e7b09"
+   language="Lua"
+   purpose=""   
+   save_state="y"
+   version="1.0"
+   >
+   <description trim="n">
+         <![CDATA[
+Room Reporter
+------------------------------------------
+rr                       -- report your current room's message to gtell
+rr <room id> <message>   -- add a message to a room
+rr remove <room id>      -- remove the message from the room
+
+]]>
+</description>
+</plugin>
+
+<aliases>
+      <alias
+            regexp="y" match="^rr$"
+            enabled="y" script="ReportRoom"
+      ></alias>
+
+      <alias
+            regexp="y" match="^rr remove ([0-9]+)$"
+            enabled="y" script="RemoveRoom"
+      ></alias>
+
+      <alias
+            regexp="y" match="^rr ([0-9]+) (.*)$"
+            enabled="y" script="AddRoom"
+      ></alias>
+
+      <alias
+            regexp="y" match="^rr help$"
+            enabled="y" script="Help"
+      ></alias>
+</aliases>
+
+<triggers>
+
+</triggers>
+
+<script>
+<![CDATA[
+   require "serialize"
+
+   local currentRoom = 0
+   local currentArea = ""
+
+   local rooms = { }
+
+   if (GetVariable("rooms") ~= nil) then
+      luastmt = "obj = " .. GetVariable("rooms")
+      assert (loadstring (luastmt or "")) ()    
+      rooms = obj
+   end
+
+   function OnPluginInstall()
+      Help()
+   end
+
+   function Help()
+      ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+   end
+
+      function OnPluginBroadcast (msg, id, name, text)         
+         -- All of this is just to keep tabs on our current room and area
+
+         -- Look for GMCP handler.
+         if (id == '3e7dedbe37e44942dd46d264') then           
+            if (text == "room.info") then
+               res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+               luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+               assert (loadstring (luastmt or "")) ()
+               
+               if gmcpdata ~= nil and gmcpdata ~= "" then
+                  currentArea = gmcpdata.zone                                          
+                  currentRoom = tonumber(gmcpdata.num)
+               end                        
+            end         
+         end         
+      end -- onpluginbroadcast    
+
+      function ReportRoom()            
+         if rooms[currentRoom] ~= nil then
+            Send("gtell " .. rooms[currentRoom])
+         else
+            ColourNote("orange", "", "Nothing to report for this room")
+         end
+      end
+
+      function AddRoom(name, line, wildcards)
+         rooms[tonumber(wildcards[1])] = wildcards[2]
+         ColourNote("cyan", "", wildcards[1], "orange", "", " set to ", "cyan", "", wildcards[2])
+
+         SaveRooms()
+      end
+
+      function RemoveRoom(name, line, wildcards)
+         rooms[tonumber(wildcards[1])] = nil
+         ColourNote("cyan", "", wildcards[1], "orange", "", " set to ", "cyan", "", "nil")
+
+         SaveRooms()
+      end
+
+      function SaveRooms()
+         SetVariable("rooms", serialize.save_simple(rooms))
+      end
+]]>
+</script>
+
+</muclient>

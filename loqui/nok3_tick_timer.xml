@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+<plugin
+   name="Nok3_Tick_Timer"
+   author="Nokfah"
+   id="a5b532a09da80b4093cabbfd"
+   language="Lua"
+   save_state="y"
+   purpose="Shows various timers from Nok3 plugins (used WinkleWikle timer as starting point)" 
+   version="20150327"
+>
+<description trim="n">
+		<![CDATA[
+==================== Tick Timer Help ====================	
+  timer spell <spell>,<abbreviation> -- add a spell you want to show timers for
+      spell: The name of the spell as it appears in the 'affects' list 
+	         (pay attention to capitalization)
+      abbreviation: how you want the label to appear on the tick timer bar,
+                    if you want the whole spell name, leave this empty
+  
+  timer spell remove <spell> -- removes the spell timer
+      spell: the name of the spell you previously entered
+  
+  timer spell show -- shows all of the spells set to show timers for
+  ]]>
+</description>
+</plugin>
+
+<aliases>
+	<alias
+		name="ticktimer_help"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		match="^timer help$"		
+		regexp="y"			
+	>		
+	<send>ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))</send>
+	</alias>
+		
+	<alias
+		name="ticktimer_addspell"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		match="^timer spell (.*),(.*)$"		
+		regexp="y"	
+		script="add_spell"
+	>		
+	</alias>
+	
+	<alias
+		name="ticktimer_removespell"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		match="^timer spell remove (.*)$"		
+		regexp="y"	
+		script="remove_spell"
+	>		
+	</alias>
+	
+	<alias
+		name="ticktimer_showspell"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		match="^timer spell show$"		
+		regexp="y"	
+		script="show_spell"
+	>		
+	</alias>
+</aliases>
+
+<triggers>
+	<!-- EXP Triggers -->
+	<trigger match="^For the next ([0-9]+) minutes experience is doubled in honor of the new superhero\.|Double experience for ([0-9]+) minutes courtesy of.+|\[    ([0-9]+) minutes of double exp started courtesy of donations being open   \]$"
+		name="trg_double_tenmin"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		script="double_start"
+	>
+	</trigger>	
+	
+	<trigger match="^For the next 60 minutes all experience is doubled\!\!$"
+		name="trg_double_hour"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		script="million_start"
+	>
+	</trigger>		
+	
+	<!-- Quest timer -->			
+	<trigger match="^.*tells you 'Congratulations, .*, on completing your quest!'|QUEST: You have run out of time for your quest\.$"
+		name="trg_quest_thirty"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		script="quest_thirty"
+	>
+	</trigger>	
+	
+	<trigger match="^You hang your head in shame and admit defeat before.*$"
+		name="trg_quest_fifteen"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		script="quest_fifteen"
+	>
+	</trigger>	
+	
+	<!-- Ability recovery trigger -->
+	<trigger match="^\s+(.*)\s+: .*?\(?([0-9]+:[0-9]+)\)?$"
+		name="trg_ablity_recover"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		script="ability_timer"
+	>
+	</trigger>	
+	<!-- End of EXP Triggers -->
+</triggers>
+
+<script>
+<![CDATA[
+
+-- pull in telnet option handling
+dofile (GetInfo (60) .. "telnet_options.lua")
+require "serialize"
+require "tprint"
+
+local lastTick
+local tickCount = 0
+
+local tickDuration = 30
+
+local doubleStartTick = -20
+local millionStartTick = -120
+
+local doubleTicks = 19
+local millionTicks = 119
+
+local abilityTimers = {}
+
+local questTimer = os.time()
+local ticksUntilQuest = 0
+local secondsOnQuest = 0
+
+local repopTimers = {} -- storage for Nok3 Repop
+local GQWatcherState = {} -- storage for Nok3 GQWatcher
+
+local spells = {
+	Timeshifting = "TS",
+	["Time Control"] = "TC",
+	Clandestine = "CD",
+	Transcendence = "TR"
+}
+if (GetVariable("tt_Spells") ~= nil) then			
+	luastmt = "obj = " .. GetVariable("tt_Spells")
+	assert (loadstring (luastmt or "")) ()		
+	spells = obj
+end	
+
+function OnPluginInstall()	
+	lastTick = os.time()
+	-- redraw the timers every second
+	AddTimer("report_timers", 0, 0, 1, "", timer_flag.Enabled + timer_flag.ActiveWhenClosed, "report_timers")
+	
+	ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))			
+end
+
+function OnPluginTelnetOption (option)
+	--> TICK <--
+	if (option == string.char (101,1)) then
+		lastTick = os.time()
+		tickCount = tickCount + 1				
+	end 
+end
+
+function OnPluginBroadcast(msg, id, name, text)
+	if (id == "b5b534a09df80b40e3cabbfd") then -- Nok3 Repop		
+		if (msg == 101) then				
+			-- load serialize.save_simple data
+			luastmt = "obj = " .. text
+			assert (loadstring (luastmt or "")) ()				
+			repopTimers = obj	
+		end
+	elseif (id == "a5b532a09df80b4093cabbfd") then -- Nok3 GQ watcher		
+		if (msg == 101) then				
+			-- load serialize.save_simple data
+			luastmt = "obj = " .. text
+			assert (loadstring (luastmt or "")) ()				
+			GQWatcherState = obj	
+		end	
+	end	
+end
+
+function double_start(name, line, wildcards)
+	for i = 1, 3, 1 do
+		if (wildcards[i] ~= nil and wildcards[i] ~= "") then								
+			doubleTicks = tonumber(wildcards[i]) * 2 - 1					
+		end
+	end	
+	
+	doubleStartTick = tickCount
+end
+
+function million_start(name, line, wildcards)
+	millionStartTick = tickCount
+end
+
+function quest_thirty()	
+	questTimer = os.time() + 1800	
+end
+
+function quest_fifteen()
+	questTimer = os.time() + 900
+end
+
+function add_spell(name, line, wildcards)
+	spells[wildcards[1]] = wildcards[2]	
+	SetVariable("tt_Spells", serialize.save_simple(spells))
+end
+
+function remove_spell(name, line, wildcards)
+	spells[wildcards[1]] = nil
+	SetVariable("tt_Spells", serialize.save_simple(spells))
+end
+
+function show_spell(name, line, wildcards)
+	ColourNote("orange", "black", "Spell List:")
+	for spell,abbr in pairs(spells) do
+		ColourNote("orange", "black", spell .. " : " .. abbr)
+	end
+end
+
+function ability_timer(name, line, wildcards)
+	local ability =  wildcards[1]:match "^%s*(.-)%s*$"	
+	if (spells[ability] ~= nil) then
+		local timeTable = split(wildcards[2], ":")
+		local minutes = timeTable[1]
+		local seconds = timeTable[2]	
+		
+		local totalSeconds = 60 * tonumber(minutes) + tonumber(seconds)
+		
+		abilityTimers[ability] = { startTime = os.time(), seconds = totalSeconds }
+	end
+end
+
+function report_timers()
+	timerString = ""
+	
+	local currentTime = os.time()
+	local secondsUntilTick = tickDuration - (currentTime - lastTick)
+	
+	local doubleExp = ""
+	if (millionStartTick + millionTicks >= tickCount) then		
+		doubleExp = "|  DOUBLE: " .. time_string(tickDuration * (millionTicks - (tickCount - millionStartTick)) + secondsUntilTick)
+	elseif (doubleStartTick + doubleTicks >= tickCount) then
+		doubleExp = "|  DOUBLE: " .. time_string(tickDuration * (doubleTicks - (tickCount - doubleStartTick)) + secondsUntilTick)
+	end	
+	
+    local questString = ""
+	if (currentTime < questTimer) then
+		questString = "| Q: " .. time_string(questTimer - currentTime)
+	end
+	
+	local abilityString = ""	
+	for ability, times in spairs(abilityTimers, function(t,a,b) return tonumber(t[b].seconds) > tonumber(t[a].seconds) end) do	
+		local remainingSeconds = times.seconds - (os.time() - times.startTime)
+		if (remainingSeconds > 0 and spells[ability] ~= nil) then
+			local abilityText = ability			
+			if (spells[ability] ~= "") then abilityText = spells[ability] end
+			abilityString = abilityString .. "  " .. abilityText .. "-" .. time_string(remainingSeconds)
+		else
+			abilityTimers[ability] = nil
+		end
+	end
+	if (abilityString ~= "") then abilityString = "| " .. abilityString end
+	
+	local GQString = ""
+	local GQCount = 0
+	for _ in pairs(GQWatcherState) do GQCount = GQCount + 1 end
+	if (GQCount > 0) then
+		GQString = "|  GQ"
+		if (GQWatcherState["state"] == "waiting") then
+			GQString = GQString .. "(next): " .. time_string(tickDuration * (GQWatcherState["ticks"]-1) + secondsUntilTick)
+		elseif (GQWatcherState["state"] == "starting") then
+			GQString = GQString .. "(starting): [" .. GQWatcherState["startLevel"] .. "-" .. GQWatcherState["endLevel"] .. "] in " .. time_string(tickDuration * (GQWatcherState["ticks"]-1) + secondsUntilTick)
+		elseif (GQWatcherState["state"] == "running") then
+			GQString = GQString .. "(running): [" .. GQWatcherState["startLevel"] .. "-" .. GQWatcherState["endLevel"] .. "] for " .. time_string(tickDuration * GQWatcherState["ticks"] + (30-secondsUntilTick))
+		end
+	end
+	
+	local repopString = ""
+	local repopTimerCount = 0
+	for _ in pairs(repopTimers) do repopTimerCount = repopTimerCount + 1 end
+	if (repopTimerCount > 0) then
+		repopString = "|  REPOP:"
+		for area, times in spairs(repopTimers, function(t,a,b) return tonumber(t[b][1]) > tonumber(t[a][1]) end) do		
+			repopString = repopString .. "  " .. area .. "(" .. times[1] .. "-" .. times[2] .. ")"
+		end	
+	end
+	
+	SetStatus(string.format("TICK: %s  %s  %s  %s  %s  %s", secondsUntilTick, doubleExp, questString, abilityString, GQString, repopString))
+end
+
+function time_string(seconds)
+	return tostring(math.floor(seconds / 60)) .. ":" .. string.sub("0" .. tostring(seconds % 60), -2, 3)
+end
+
+-- Taken from http://stackoverflow.com/questions/15706270/sort-a-table-in-lua
+function spairs(t, order)
+	-- collect the keys
+	local keys = {}
+	for k in pairs(t) do keys[#keys+1] = k end
+
+	-- if order function given, sort by it by passing the table and keys a, b,
+	-- otherwise just sort the keys 
+	if order then
+		table.sort(keys, function(a,b) return order(t, a, b) end)
+	else
+		table.sort(keys)
+	end
+
+	-- return the iterator function
+	local i = 0
+	return function()
+		i = i + 1
+		if keys[i] then
+			return keys[i], t[keys[i]]
+		end
+	end
+end
+
+function split(str, delim)		
+		 local subStrings = {}		 
+		 
+		 for subStr in string.gmatch(str, "([^" .. delim .. "]+)") do			
+			table.insert(subStrings, subStr)			
+		 end
+		 
+		 return subStrings
+	 end
+
+]]>
+</script>
+</muclient>

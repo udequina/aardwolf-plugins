@@ -1,0 +1,227 @@
+<muclient>
+<plugin
+   name="Nok3_Titan_Triggers"
+   author="Nokfah"
+   id="59ec2095a92456120a0c8977"
+   language="Lua"
+   purpose="Outputs important titan epic info to a channel"   
+   save_state="y"
+   version="1.0"
+   >
+</plugin>
+
+
+<aliases>
+	<alias
+		regexp="y" match="^tit channel (.*)$"
+		script="SetChannel" enabled="y"
+	></alias>
+</aliases>
+
+<triggers>
+	<trigger script="SanctuaryOn" enabled="y"
+		regexp="y" match="^(?<who>Durthar|Lugthurg|Grakkr|Rograg|Morgak|Gjaka|Orzbuk's .*|Someone) quaffs a potion of Sanctuary\.$"		
+	></trigger>
+
+
+	<trigger script="SanctuaryOff" enabled="y"
+		regexp="y" match="^The white aura around (?<who>Durthar|Lugthurg|Grakkr|Rograg|Morgak|Gjaka|Orzbuk's .*|Someone)'s body vanishes\.$"		
+	></trigger>
+
+	<trigger 
+		regexp="y" match="^(?<who>Durthar|Lugthurg|Grakkr|Rograg|Morgak|Gjaka|Orzbuk's .*|Someone) wears a Mighty Shield as a shield\.$"
+		script="ShieldUp" enabled="y"
+	></trigger>
+
+	<trigger script="ShieldDown" enabled="y"
+		regexp="y" match="^With awesome force (?<who>.*) cleaves (?<enemy>Durthar|Lugthurg|Grakkr|Rograg|Morgak|Gjaka|Orzbuk's .*|Someone)'s? shield in half!$"		
+	></trigger>
+
+	<trigger script="ShieldDown" enabled="y"
+		regexp="y" match="^(?<who>You)r mighty strike cleaves (?<enemy>Durthar|Lugthurg|Grakkr|Rograg|Morgak|Gjaka|Orzbuk's .*|Someone)'s? shield in half!$"		
+	></trigger>
+
+	<trigger script="RunStart" enabled="y"
+		regexp="y" match="^You receive Rune of Passage from Salkin\.$"		
+	></trigger>
+
+	<trigger script="RunComplete" enabled="y"
+		regexp="y" match="^Salkin leads you out of the secret passageways\.$"		
+	></trigger>
+
+	<trigger script="BossStart" enabled="y"
+		regexp="y" match="^Salkin snaps his fingers; your rune glows faintly!$"		
+	></trigger>	
+
+	<trigger script="BossComplete" enabled="y"
+		regexp="y" match="^As the Titan General weakens, the fragments of the shattered crystal seal .*$"		
+	></trigger>	
+
+	<trigger script="BossComplete" enabled="y"
+		regexp="y" match="^Once the Titan General is slain, Salkin quickly leads you back to the secret junction\.*$"		
+	></trigger>	
+</triggers>
+
+<script>
+<![CDATA[	
+	require "serialize"
+
+	local me = "Nokfah"
+
+	local channel = "tracker"
+	
+	local clrSep = "@D"
+	local clrLbl = "@x208"
+	local clrVal = "@W"
+	local clrOn = "@G"
+	local clrOff = "@R"
+	local clrPlayer = "@c"
+
+	local runStart = os.time()
+	local bossStart = os.time()
+
+	local orzbukNumbers = {
+		["Orzbuk\'s right leg"] = 1,
+		["Orzbuk\'s left leg"] = 2,
+		["Orzbuk\'s right arm"] = 3,
+		["Orzbuk\'s left arm"] = 4
+	}
+
+	function OnPluginBroadcast (msg, id, name, text)
+      -- Look for GMCP handler.
+      if (id == '3e7dedbe37e44942dd46d264') then
+         if (text == "room.info") then
+            res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+            luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+            assert (loadstring (luastmt or "")) ()
+
+            currentRoom = tonumber(gmcpdata.num)
+         end
+      end
+    end
+
+    function SetChannel(name, line, wildcards)
+		channel = wildcards[1]
+
+		ColourNote("orange", "", "Titan channel set to ", "cyan", "", channel)
+    end
+
+    function BossStart()
+    	bossStart = os.time()
+    end
+
+    function BossComplete()
+    	local reportTbl = StartLabel("BOSS COMPLETE")
+		
+		local totalSeconds = os.time() - bossStart
+    	local minutes = math.floor(totalSeconds / 60)
+    	local seconds = math.floor(totalSeconds % 60)
+
+		table.insert(reportTbl, { typ="val", val=tostring(minutes) })
+		table.insert(reportTbl, { typ="sep", val="m " })
+		table.insert(reportTbl, { typ="val", val=tostring(seconds) })
+		table.insert(reportTbl, { typ="sep", val="s" })		
+		
+		Report(reportTbl)
+    end
+
+    function RunStart()
+    	runStart = os.time()
+    end
+
+    function RunComplete()
+    	local reportTbl = StartLabel("RUN COMPLETE")
+		
+		local totalSeconds = os.time() - runStart
+    	local minutes = math.floor(totalSeconds / 60)
+    	local seconds = math.floor(totalSeconds % 60)
+
+		table.insert(reportTbl, { typ="val", val=tostring(minutes) })
+		table.insert(reportTbl, { typ="sep", val="m " })
+		table.insert(reportTbl, { typ="val", val=tostring(seconds) })
+		table.insert(reportTbl, { typ="sep", val="s" })		
+		
+		Report(reportTbl)
+    end
+	
+    function FixMobName(mobName)    	
+		if orzbukNumbers[mobName] ~= nil then
+			return orzbukNumbers[mobName] .. ".orz"
+		else
+			return mobName
+		end
+    end
+
+	function SanctuaryOn(name, line, wildcards)
+		local reportTbl = StartLabel("SANC")
+		
+		table.insert(reportTbl, { typ="val", val=FixMobName(wildcards[1]) })
+		table.insert(reportTbl, { typ="sep", val=" | " })
+		table.insert(reportTbl, { typ="on", val="ON" })		
+		
+		Report(reportTbl)
+	end
+
+	function SanctuaryOff(name, line, wildcards)
+		local reportTbl = StartLabel("SANC")
+		
+		table.insert(reportTbl, { typ="val", val=FixMobName(wildcards[1]) })
+		table.insert(reportTbl, { typ="sep", val=" | " })
+		table.insert(reportTbl, { typ="off", val="OFF" })		
+		
+		Report(reportTbl)
+	end
+
+	function ShieldUp(name, line, wildcards)
+		local reportTbl = StartLabel("SHIELD")
+		
+		table.insert(reportTbl, { typ="val", val=FixMobName(wildcards.who) })		
+		
+		Report(reportTbl)
+	end
+	
+	function ShieldDown(name, line, wildcards)
+		local reportTbl = StartLabel("CLEAVED")
+		
+		if wildcards.who == "You" then wildcards.who = me end
+
+		table.insert(reportTbl, { typ="val", val=FixMobName(wildcards.enemy) })
+		table.insert(reportTbl, { typ="sep", val=" | " })
+		table.insert(reportTbl, { typ="player", val=wildcards.who })		
+		
+		Report(reportTbl)
+	end	
+
+	function Report(reportTbl)
+		ReportChannel(reportTbl)
+	end
+	
+	function ReportChannel(reportTbl)
+		local reportStr = channel .. " "			
+		
+		for i, style in pairs(reportTbl) do
+			local color = "@w"
+			if style.typ == "sep" then color = clrSep 
+			elseif style.typ == "lbl" then color = clrLbl 
+			elseif style.typ == "val" then color = clrVal 
+			elseif style.typ == "on" then color = clrOn
+			elseif style.typ == "off" then color = clrOff
+			elseif style.typ == "player" then color = clrPlayer end
+			
+			reportStr = reportStr .. color .. style.val
+		end
+		
+		SendNoEcho(reportStr)
+	end
+			
+	function StartLabel(label)
+		return {			
+			{ typ="lbl", val=label },
+		    { typ="sep", val=" | " }
+		}
+	end
+]]>
+</script>
+
+</muclient>

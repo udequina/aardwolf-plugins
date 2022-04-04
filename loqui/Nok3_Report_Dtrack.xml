@@ -1,0 +1,390 @@
+<muclient>
+<plugin
+   name="Nok3_Report_Dtrack"
+   author="Nokfah"
+   id="eee5e4a73b210d55e3662cf5"
+   language="Lua"
+   purpose="Report dtrack to a channel"   
+   save_state="y"
+   version="1.0"
+   >
+      	<description trim="n">
+		<![CDATA[
+==================== Report Dtrack Help ====================	
+rptdtrack <channel>  - report dtrack and dtrack hits values to a channel
+]]>
+		</description>
+</plugin>
+
+<aliases>
+	<alias
+		match="^rptdtrack (.*)$"
+		regexp="y" enabled="y"
+		script="ReportStart"
+	>
+		
+	</alias>
+</aliases>
+
+<triggers>
+	<!-- Dtrack Triggers -->
+	<trigger name="dtrack_start"
+		match="^Damage tracker: $"
+		regexp="y" enabled="n"
+		script="DtrackCaptureStart"
+	></trigger>
+	
+	<trigger name="dtrack_end" script="DtrackCaptureEnd"
+		match="^---------------------------------------------------------------$"
+		regexp="y" enabled="n"		
+	></trigger>
+
+	<trigger group="dtrack_capture" script="DtrackCapture"
+		match="^(Rounds)      : \[\s*([0-9\.]+)\s*\]$"
+		regexp="y" enabled="n"		
+	></trigger>	
+	<trigger group="dtrack_capture"	script="DtrackCapture"			
+		match="^(Swings)      : \[\s*([0-9\.]+)\s*\]"
+		regexp="y" enabled="n" keep_evaluating="y"	
+	></trigger>
+	<trigger group="dtrack_capture"	script="DtrackCapture"			
+		match="(Swings Per Round)  : \[\s*([0-9\.]+)\s*\]$"
+		regexp="y" enabled="n" keep_evaluating="y"
+	></trigger>
+	<trigger group="dtrack_capture"	script="DtrackCapture"	
+		match="(Hit Percentage)    : \[\s*([0-9\.]+)\s*\]$"
+		regexp="y" enabled="n" keep_evaluating="y"		
+	></trigger>
+	<trigger group="dtrack_capture"	script="DtrackCapture"	
+		match="(Damage Per Hit)    : \[\s*([0-9\.]+)\s*\]$"
+		regexp="y" enabled="n" keep_evaluating="y"		
+	></trigger>
+	<trigger group="dtrack_capture" script="DtrackCapture"
+		match="^(Hits)\s+: \[\s*([0-9\.]+)\s*\]"
+		regexp="y" enabled="n" keep_evaluating="y"			
+	></trigger>			
+	<trigger group="dtrack_capture"	script="DtrackCapture"
+		match="(Damage)\s+: \[\s*([0-9\.]+)\s*\]"
+		regexp="y" enabled="n" keep_evaluating="y"			
+	></trigger>
+	<trigger group="dtrack_capture"	script="DtrackCapture"	
+		match="^(Average)     : \[\s*([0-9\.]+)\s*\]$"
+		regexp="y" enabled="n" keep_evaluating="y"		
+	></trigger>	
+	<trigger group="dtrack_capture" script="DtrackCapture"	
+		match="\( (Missed): ([0-9]+), Dodged: [0-9]+, Other: [0-9]+\)$"
+		regexp="y" enabled="n" keep_evaluating="y"		
+	></trigger>	
+	<trigger group="dtrack_capture"	script="DtrackCapture"
+		match="\( Missed: [0-9]+, (Dodged): ([0-9]+), Other: [0-9]+\)$"
+		regexp="y" enabled="n" keep_evaluating="y"			
+	></trigger>	
+	<trigger group="dtrack_capture" script="TrackedSpell"
+		match="^Tracked (?:Spell|Skill) \([\w\s]+\):$"
+		regexp="y" enabled="n" keep_evaluating="y"		
+	></trigger>
+	
+	<!-- Dtrack Hits Triggers -->
+	<trigger name="dtrack_hits_start" script="DtrackHitsCaptureStart"
+		match="^Damage tracker: $"
+		regexp="y" enabled="n"		
+	>
+	</trigger>
+	
+	<trigger name="dtrack_hits_end" script="DtrackHitsCaptureEnd"
+		match="^---------------------------------------------------------------$"
+		regexp="y" enabled="n"		
+	>
+	</trigger>
+	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Primary Attack): \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Second Attack)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Third Attack)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Fourth Attack)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Fifth Attack)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Sixth Attack)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>			
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Dual Wield)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>			
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Second Dual)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Third Dual)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Haste Attacks)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>		
+	<trigger group="dtrack_hits_capture"
+		match="^(?<atk>Lightspeed)\s+: \[\s+(?<hits>[0-9]+) \](?:   \(Instinct\s+(?<ihits>[0-9]+)\))?$"			
+		regexp="y" enabled="y" keep_evaluating="y"
+		send_to="12" script="DtrackHitsCapture"
+	></trigger>	
+</triggers>
+
+<script>
+<![CDATA[
+	require "serialize"
+	require "commas"
+
+	--[[
+---------------------------------------------------------------
+Damage tracker: 
+
+Rounds      : [     756 ]
+Swings      : [    5306 ]     Swings Per Round  : [   7.02 ]
+   Primary  : [    5287 ]        Primary        : [   6.99 ]
+   Secondary: [      19 ]        Secondary      : [   0.03 ]
+
+Hits        : [    3591 ]     Hit Percentage    : [  67.68 ]
+   Primary  : [    3577 ]        Primary        : [  67.66 ]
+   Secondary: [      14 ]        Secondary      : [  73.68 ]
+
+Misses      : [    1715 ]     ( Missed: 1084, Dodged: 631, Other: 0)
+
+Damage      : [ 6139061 ]     Damage Per Hit    : [ 1709.57 ]
+   Primary  : [ 6122339 ]        Primary        : [ 1711.58 ]
+   Secondary: [   16722 ]        Secondary      : [ 1194.43 ]
+
+
+---------------------------------------------------------------
+
+---------------------------------------------------------------
+Damage tracker: 
+
+Rounds      : [     756 ]
+Swings      : [    5306 ]     Swings Per Round  : [   7.02 ]
+   Primary  : [    5287 ]        Primary        : [   6.99 ]
+   Secondary: [      19 ]        Secondary      : [   0.03 ]
+
+Hits        : [    3591 ]     Hit Percentage    : [  67.68 ]
+   Primary  : [    3577 ]        Primary        : [  67.66 ]
+   Secondary: [      14 ]        Secondary      : [  73.68 ]
+
+
+Hit Breakdown:
+
+Primary Attack: [     756 ]
+Second Attack : [     815 ]   (Instinct   73)
+Third Attack  : [     687 ]   (Instinct   61)
+Fourth Attack : [     644 ]   (Instinct   93)
+Fifth Attack  : [     431 ]
+Sixth Attack  : [     401 ]
+
+Dual Wield    : [       9 ]
+Second Dual   : [       7 ]
+Third Dual    : [       3 ]
+
+Haste Attacks : [     811 ]   (Instinct   65)
+Lightspeed    : [     742 ]
+Unarmed       : [       0 ]
+
+---------------------------------------------------------------
+
+		Organization
+[Rounds|644] [Melee| 4000swings | 3182hits 64% | 261insctinct 3% | 1331missed 438dodged | 1270.58/hit 4.94hit/round 7.69swing/round]
+
+[1st|644 13.01%] 
+[2nd|687(56) 13.88%(21.46%)] 
+[3rd|574(62) 11.59%(23.75%)] 
+[4th|568(83) 11.47%(31.80%)] 
+[5th|344 6.95%] 
+[6th|332 6.71%] 
+[Dual|230(2) 4.65%(0.77%)] 
+[2nd dual|144 2.91%] 
+[3rd dual|108 2.18%] 
+[Haste|696(58) 14.06%(22.22%)] 
+[Lightspeed|624 12.60%] 		
+		
+	]]--
+
+	local spellName = "no spell"
+	local channel = ""
+	local meleeData = {}
+	local spellData = {}
+	local hitsData = {}
+	local meleeorspell = "melee"
+	
+	local color1 = "@D"
+	local color2 = "@r"
+	local color3 = "@W"
+	
+	local hitsMapping = {
+		["Primary Attack"] = "1st",
+		["Second Attack"] = "2nd",
+		["Third Attack"] = "3rd",
+		["Fourth Attack"] = "4th",
+		["Fifth Attack"] = "5th",
+		["Sixth Attack"] = "6th",
+		["Dual Wield"] = "Dual",
+		["Second Dual"] = "2nd dual",
+		["Third Dual"] = "3rd dual",
+		["Haste Attacks"] = "Haste",
+		["Lightspeed"] = "Lightspeed"
+	}
+	
+	function OnPluginInstall()
+		ColourNote("orange", "", GetPluginInfo (GetPluginID (), 3))		
+	end
+	
+	function ResetData()
+		meleeData = {}
+		spellData = {}
+		hitsData = {}
+		meleeorspell = "melee"
+	end
+	
+	function ReportStart(name, line, wildcards)
+		channel = wildcards[1]
+		
+		ResetData()
+				
+		EnableTrigger("dtrack_start", true)		
+		SendNoEcho("dtrack")		
+	end
+	
+	function DtrackCaptureStart()		
+		EnableTrigger("dtrack_start", false)	
+		EnableTriggerGroup("dtrack_capture", true)
+		EnableTrigger("dtrack_end", true)
+	end
+	
+	function DtrackCaptureEnd()		
+		EnableTriggerGroup("dtrack_capture", false)
+		EnableTrigger("dtrack_end", false)
+		
+		EnableTrigger("dtrack_hits_start", true)
+		SendNoEcho("dtrack hits")
+	end
+	
+	function DtrackCapture(name, line, wildcards)						
+		local key = wildcards[1]		
+
+		if meleeorspell == "melee" then			
+			meleeData[key] = wildcards[2]
+		else			
+			spellData[key] = wildcards[2]
+		end
+	end
+	
+	function TrackedSpell()		
+		meleeorspell = "spell"
+	end
+	
+	function DtrackHitsCaptureStart()		
+		EnableTrigger("dtrack_hits_start", false)	
+		EnableTriggerGroup("dtrack_hits_capture", true)
+		EnableTrigger("dtrack_hits_end", true)
+	end
+	
+	function DtrackHitsCaptureEnd()		
+		EnableTriggerGroup("dtrack_hits_capture", false)
+		EnableTrigger("dtrack_hits_end", false)
+		
+		ReportEnd()
+	end
+	
+	function DtrackHitsCapture(name, line, wildcards)			
+		-- Stall the timer each move						
+		table.insert(hitsData, { atk = wildcards.atk, hits = tonumber(wildcards.hits), ihits = (tonumber((wildcards.ihits or "0")) or 0) })			
+	end
+	
+	-- [Rounds| xx] [Melee| xxhits xxdmg/hit xxhit/round  xxswing/round xxhit% xxmissed xxdodged] 
+	-- [Spell| xxhit xxdmg/hit xxhit/round] 
+	-- [Damage| xxmelee xxspell]
+	function ReportEnd()
+		local totalInstinctHits = 0		
+		for i, info in ipairs(hitsData) do			
+			totalInstinctHits = totalInstinctHits + info.ihits
+		end
+
+
+		local reportString = channel .. " "
+		reportString = reportString .. 
+			color1 .. "[" .. color2 .. "Rounds" .. color1 .. "|" .. color3 .. meleeData["Rounds"] .. color1 .. "] " ..
+			color1 .. "[" .. color2 .. "Melee" .. color1 .. "| " ..
+				color3 .. meleeData["Swings"] .. color1 .. "swings | " .. 
+				color3 .. meleeData["Hits"] .. color1 .. "hits " .. 
+				color3 .. meleeData["Hit Percentage"] .. color1 .. "% | " ..
+				color3 .. totalInstinctHits .. color1 .. "instinct " .. 
+				color3 .. string.format("%.2f", totalInstinctHits/tonumber(meleeData["Swings"])*100) .. color1 .. "% | " ..
+				color3 .. meleeData["Missed"] .. color1 .. "missed " ..
+				color3 .. meleeData["Dodged"] .. color1 .. "dodged | " ..
+				color3 .. meleeData["Damage Per Hit"] .. color1 ..  "/hit " .. 
+				color3 .. string.format("%.2f", tonumber(meleeData["Hits"]) / tonumber(meleeData["Rounds"])) .. color1 ..  "hit/round " .. 
+				color3 .. meleeData["Swings Per Round"] .. color1 ..  "swing/round]"				
+				
+		
+		if spellData["Hits"] ~= nil then
+			reportString = reportString ..
+				color1 .. " [" .. color2 .. "Spell" .. color1 .. "|" ..
+					color3 .. spellData["Hits"] .. color1 .. " " .. 
+					color3 .. (spellData["Average"] or 0) .. color1 ..  "/hit " .. 
+					color3 .. string.format("%.2f", tonumber(spellData["Hits"]) / tonumber(meleeData["Rounds"])) .. color1 ..  "hit/round] " .. 
+				color1 .. "[" .. color2 .. "Damage" .. color1 .. "|" ..
+					color3 .. commas(tonumber(meleeData["Damage"])) .. color1 .. "melee " ..
+					color3 .. commas(tonumber(spellData["Damage"])) .. color1 .. "spell]"
+		end
+		
+		SendNoEcho(reportString)
+		
+		local reportString = channel .. " "		
+	
+		while #hitsData > 0 do
+			local info = table.remove(hitsData, 1)
+			if info.hits > 0 then
+				-- # of hits
+				reportString = reportString .. 
+					color1 .. "[" .. color2 .. hitsMapping[info.atk] .. color1 .. "|" ..color3 .. info.hits .. color1				
+				if info.ihits > 0 then
+					 reportString = reportString .. color1 .. "(" .. color3 .. info.ihits .. color1 .. ")"
+				end
+				
+				-- % of hits
+				reportString = reportString .. " " .. color3 .. string.format("%.2f", info.hits/tonumber(meleeData["Swings"])*100) .. "%"									
+				if info.ihits > 0 then
+					 reportString = reportString .. color1 .. "(" .. color3 .. string.format("%.2f", info.ihits/tonumber(meleeData["Swings"])*100) .. "%" .. color1 .. ")"
+				end							
+				
+				reportString = reportString .. color1 .. "] "
+			end
+		end	
+	
+		SendNoEcho(reportString)		
+	end
+]]>
+</script>
+
+</muclient>

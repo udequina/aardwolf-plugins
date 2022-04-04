@@ -1,0 +1,156 @@
+<muclient>
+<plugin
+   name="Nok3_IF_Retreat"
+   author="Nokfah"
+   id="80c69ef7a7224b0d8fbba5c6"
+   language="Lua"
+   purpose=""   
+   save_state="y"
+   version="1.0"
+   >
+</plugin>
+
+<aliases>
+   <alias script="Start" enabled="y"
+      regexp="y" match="^ifret$"
+   ></alias>   
+
+   <alias script="Stop" enabled="y"
+      regexp="y" match="^ifret stop$"
+   ></alias>   
+
+   <alias script="Data" enabled="y"
+      regexp="y" match="^ifret data$"
+   ></alias>   
+</aliases>
+   
+<triggers>
+   <!-- FAIL -->   
+   <trigger group="failed_retreat"
+      script="FailedRetreat" enabled="n"
+      regexp="y" match="^You FAIL to retreat!$"
+   ></trigger>
+
+   <!-- EAST -->
+   <trigger group="failed_retreat"
+      script="FailedRetreat" enabled="n"
+      regexp="y" match="^Jaws of death yank you away from the exit!$"
+   ></trigger>
+
+   <!-- SOUTH -->
+   <trigger group="failed_retreat"
+      script="FailedRetreat" enabled="n"
+      regexp="y" match="^You bump into a giant as you try to escape!$"
+   ></trigger>
+
+   <!-- WEST -->
+   <trigger group="failed_retreat"
+      script="FailedRetreat" enabled="n"
+      regexp="y" match="^Icy breath freezes you before you can escape!$"
+   ></trigger>
+
+</triggers>
+
+<script>
+<![CDATA[
+   local rooms = {
+      -- east
+      [38814] = { dir = "e", nextRoom=38815 },
+      
+      -- south
+      [38825] = { dir = "s", nextRoom=38826 },
+      [38826] = { dir = "s", nextRoom=38827 },
+
+      -- west
+      [38836] = { dir = "w", nextRoom=38837 },
+      [38837] = { dir = "n", nextRoom=38838 },
+      [38838] = { dir = "w", nextRoom=38839 },
+   }  
+
+   local roomId = 0
+   local startRoom = 0   
+   local retreating = false   
+   local retreatCount = 0
+   local retreatAttempts = tonumber(GetVariable("retreatAttempts") or 0)
+   local retreatSuccesses = tonumber(GetVariable("retreatSuccesses") or 0)
+   local retreatTime = tonumber(GetVariable("retreatTime") or 0)
+   local retreatMin = tonumber(GetVariable("retreatMin") or 0)
+   local retreatMax = tonumber(GetVariable("retreatMax") or 0)
+   local retreatStart = 0
+
+   function OnPluginBroadcast(msg, id, name, text)
+      -- Look for GMCP handler.
+      if (id == '3e7dedbe37e44942dd46d264') then
+         if (text == "room.info") then
+            res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+            luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+            assert (loadstring (luastmt or "")) ()                        
+            
+            roomId = tonumber(gmcpdata.num) 
+            if retreating and rooms[startRoom].nextRoom == roomId then
+               Stop()
+            end
+         end
+      end
+   end
+
+   function Start(name, line, wildcards)
+      if rooms[roomId] ~= nil then
+         EnableTriggerGroup("failed_retreat", true)
+
+         startRoom = roomId
+         retreating = true      
+
+         retreatCount = 1
+         retreatStart = os.clock()
+         Send("ret " .. rooms[startRoom].dir)
+      else
+         ColourNote("orange", "", "You're not in a PK room, silly")
+      end
+   end
+
+   function FailedRetreat()
+      if retreating then
+         retreatCount = retreatCount + 1
+         Send("ret " .. rooms[startRoom].dir)
+      end
+   end
+
+   function Stop(name, line, wildcards)   
+      local timeTaken = os.clock() - retreatStart
+
+      EnableTriggerGroup("failed_retreat", false)
+
+      retreating = false      
+      retreatAttempts = retreatAttempts + retreatCount
+      retreatSuccesses = retreatSuccesses + 1
+      retreatTime = retreatTime + timeTaken
+
+      SetVariable("retreatAttempts", retreatAttempts)
+      SetVariable("retreatSuccesses", retreatSuccesses)
+      SetVariable("retreatTime", retreatTime)
+
+      if retreatCount < retreatMin or retreatMin == 0 then
+         retreatMin = retreatCount
+         SetVariable("retreatMin", retreatMin)
+      end
+
+      if retreatCount > retreatMax or retreatMax == 0 then
+         retreatMax = retreatCount
+         SetVariable("retreatMax", retreatMax)
+      end
+
+      ColourNote("orange", "", "Retreat stopped at: ", "cyan", "", tostring(retreatCount), "orange", "", " (" .. tostring(timeTaken) .. " seconds)")
+   end
+
+   function Data()
+      local retreatAvg = tonumber(retreatAttempts)/tonumber(retreatSuccesses)
+      local retreatTimeAvg = tonumber(retreatTime)/tonumber(retreatSuccesses)
+      ColourNote("orange", "", "Retreat attempts: ", "cyan", "", tostring(retreatMin), "orange", "", "-", "cyan", "", tostring(retreatMax), "orange", "", " (", "cyan", "", tostring(retreatAvg), "orange", "", " average)")
+      ColourNote("orange", "", "Time taken: ", "cyan", "", tostring(retreatTime), "orange", "", " (", "cyan", "", tostring(retreatTimeAvg), "orange", "", " average)")
+   end
+]]>
+</script>
+
+</muclient>

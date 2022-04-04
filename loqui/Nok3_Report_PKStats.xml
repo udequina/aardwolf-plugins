@@ -1,0 +1,101 @@
+<muclient>
+<plugin
+   name="Nok3_Report_PKStats"
+   author="Nokfah"
+   id="e79346bab0946b5a0b571864"
+   language="Lua"
+   purpose=""   
+   save_state="y"
+   version="1.0"
+   >
+</plugin>
+
+<aliases>
+   <alias script="Start" enabled="y"
+      regexp="y" match="^rptpk(?: (.*))?$"
+   ></alias>
+</aliases>
+
+<triggers>
+    <trigger name="pkstat_capture"
+      script="PKStatsCapture" enabled="n"
+      regexp="y" match="^(?<type>\w+)\s+(?<kills>[0-9]+)\s+(?<deaths>[0-9]+)\*?$"
+   ></trigger>
+</triggers>
+
+<script>
+<![CDATA[
+   local stats = {}
+   local defaultChannel = "tracker"
+   local reportChannel = "tracker"
+
+   function Start(name, line, wildcards)
+      if wildcards[1] ~= "" and wildcards[1] ~= nil then reportChannel = wildcards[1] end
+
+      stats = {}
+
+      EnableTrigger("pkstat_capture", true)
+      SendNoEcho("pkstats")
+   end
+
+	function PKStatsCapture(name, line, wildcards)
+      stats[wildcards.type] = {}
+      stats[wildcards.type].kills = wildcards.kills
+      stats[wildcards.type].deaths = wildcards.deaths
+
+      if wildcards.type == "Total" then 
+         EnableTrigger("pkstat_capture", false)
+         Report() 
+      end
+   end
+
+   function Report()
+      local stringLength = 4
+
+      SendNoEcho(reportChannel .. " _ Raid  Def Want  Rev   HC  OPK  Reg Total") 
+
+      -- kills
+      local regularKills = tonumber(stats.Total.kills) - 
+                           tonumber(stats.Raiding.kills) -
+                           tonumber(stats.Defending.kills) -
+                           tonumber(stats.Wanted.kills) -
+                           tonumber(stats.Revenge.kills) -
+                           tonumber(stats.Hardcore.kills) -
+                           tonumber(stats.OPK.kills)
+
+      SendNoEcho(reportChannel .. " K|" .. 
+         string.format("%"..tostring(stringLength).."s", stats.Raiding.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Defending.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Wanted.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Revenge.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Hardcore.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.OPK.kills) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", tostring(regularKills)) .. " " .. 
+         string.format("%"..tostring(stringLength+1).."s", stats.Total.kills)
+      )
+
+      -- deaths
+      local regularDeaths = tonumber(stats.Total.deaths) - 
+                           tonumber(stats.Raiding.deaths) -
+                           tonumber(stats.Defending.deaths) -
+                           tonumber(stats.Wanted.deaths) -
+                           tonumber(stats.Revenge.deaths) -                           
+                           tonumber(stats.OPK.deaths)
+
+      SendNoEcho(reportChannel .. " D|" .. 
+         string.format("%"..tostring(stringLength).."s", stats.Raiding.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Defending.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Wanted.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Revenge.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.Hardcore.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", stats.OPK.deaths) .. " " .. 
+         string.format("%"..tostring(stringLength).."s", tostring(regularDeaths)) .. " " ..
+         string.format("%"..tostring(stringLength+1).."s", stats.Total.deaths)
+      )
+
+      reportChannel = defaultChannel
+   end
+]]>
+</script>
+
+</muclient>

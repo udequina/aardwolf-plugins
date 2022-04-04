@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+<plugin
+   name="Nok3_Sleep_For_Ticks"
+   author="Nokfah"
+   id="a5b532a09da80b4093eabbfd"
+   language="Lua"
+   save_state="y"
+   purpose="Sleep for a certain number of ticks, then wake up" 
+   version="20150327"
+>
+<description trim="n">
+		<![CDATA[
+==================== Sleep For Ticks Help ====================	  
+  sf <#> -- sleep for this number of ticks
+  stf    -- sleep until stats are full
+  
+  sf regen <id> -- the id of aard regen ring
+  sf ring <id>  -- the ring to wear in place of regen ring
+  sf bag <id>   -- bag to store the regen ring
+  ]]>
+</description>
+</plugin>
+
+<aliases>			
+	<alias		
+		enabled="y" sequence="100"		
+		regexp="y" match="^sf ([0-9]+)$"				
+		script="StartTicks"
+	>		
+	</alias>	
+	
+	<alias		
+		enabled="y" sequence="100"		
+		regexp="y" match="^stf$"				
+		script="StartFull"
+	>		
+	</alias>
+	
+	<alias		
+		enabled="y" sequence="100"		
+		regexp="y" match="^sf ring (.*)$"				
+		script="SetRing"
+	>		
+	</alias>	
+	
+	<alias		
+		enabled="y" sequence="100"		
+		regexp="y" match="^sf regen (.*)$"				
+		script="SetRegen"
+	>		
+	</alias>	
+	
+	<alias		
+		enabled="y" sequence="100"		
+		regexp="y" match="^sf bag (.*)$"				
+		script="SetBag"
+	>		
+	</alias>
+</aliases>
+
+<triggers>
+	<trigger				
+		enabled="y" sequence="100"		
+		regexp="y" match="^You wake and stand up\.$"				
+		script="Cancel"
+	>
+	</trigger>
+</triggers>
+
+<script>
+<![CDATA[
+
+-- pull in telnet option handling
+dofile (GetInfo (60) .. "telnet_options.lua")
+require "serialize"
+require "tprint"
+
+local sleepTicks = 0
+local sleeping = "no"
+
+local maxstats = {}
+local vitals = {}
+
+local regen = GetVariable("sf_regen") or ""
+local ring = GetVariable("sf_ring") or ""
+local bag = GetVariable("sf_bag") or ""
+
+function OnPluginInstall()		
+	ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+end
+
+function OnPluginTelnetOption (option)
+	--> TICK <--
+	if (option == string.char (101,1)) then		
+		if sleeping == "ticks" then			
+			sleepTicks = sleepTicks - 1			
+			
+			if (sleepTicks == 0) then
+				Wake()
+			end		
+		end
+	end 
+end
+
+function OnPluginBroadcast (msg, id, name, text)
+	-- Look for GMCP handler.
+	if (id == '3e7dedbe37e44942dd46d264') then	
+		if (text == "char.vitals") then											
+			if sleeping == "full" then
+				-- get max stats
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.maxstats") 
+				luastmt = "gmcpdata = " .. gmcparg 
+				assert (loadstring (luastmt or "")) ()
+							
+				maxstats = gmcpdata	
+			
+				-- get current stats
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.vitals")
+				luastmt = "gmcpdata = " .. gmcparg
+				assert (loadstring (luastmt or "")) ()
+				
+				vitals = gmcpdata
+				
+				vitals.hppct = tonumber(vitals.hp) / tonumber(maxstats.maxhp) * 100.0	
+				vitals.manapct = tonumber(vitals.mana) / tonumber(maxstats.maxmana) * 100.0
+				vitals.movespct = tonumber(vitals.moves) / tonumber(maxstats.maxmoves) * 100.0	
+											
+				if (vitals.hppct == 100 and vitals.manapct == 100 and vitals.movespct == 100) then
+					Wake()
+				else
+					ColourNote("dimgray", "", "[",
+				           "orange", "", "STF",
+						   "dimgray", "", "|",
+						   "lime", "", string.format("%.0f", vitals.hppct),
+				           "dimgray", "", "|",
+						   "dodgerblue", "", string.format("%.0f", vitals.manapct),
+						   "dimgray", "", "|",
+						   "yellow", "", string.format("%.0f", vitals.movespct),
+						   "dimgray", "", "]")
+				end
+			end
+		end
+	end		   
+end -- onpluginbroadcast
+
+function StartTicks(name, line, wildcards)
+	sleepTicks = tonumber(wildcards[1])
+	sleeping = "ticks"	
+	Sleep()
+end
+
+function StartFull()
+	sleeping = "full"	
+	Sleep()
+end
+
+function Sleep()
+	SendNoEcho("rem " .. ring)
+	
+	if bag ~= nil and bag ~= "" then
+		SendNoEcho("get " .. regen .. " " .. bag)
+	end
+	
+	SendNoEcho("wear " .. regen)
+	SendNoEcho("sleep")
+end
+
+function Wake()
+	sleeping = "no"
+	SendNoEcho("stand")
+	
+	SendNoEcho("rem " .. regen)	
+	if bag ~= nil and bag ~= "" then
+			SendNoEcho("put " .. regen .. " " .. bag)
+		end
+	SendNoEcho("wear " .. ring)	
+end
+
+function Cancel()
+	if sleeping ~= "no" then
+		sleeping = "no"
+		
+		SendNoEcho("rem " .. regen)		
+		if bag ~= nil and bag ~= "" then
+			SendNoEcho("put " .. regen .. " " .. bag)
+		end		
+		SendNoEcho("wear " .. ring)	
+	end
+end
+
+function SetRing(name, line, wildcards)
+	ring = wildcards[1]
+	SetVariable("sf_ring", ring)
+	ColourNote("orange", "", "Ring set to: ", "cyan", "", ring)
+end
+
+function SetRegen(name, line, wildcards)
+	regen = wildcards[1]
+	SetVariable("sf_regen", regen)
+	ColourNote("orange", "", "Regen set to: ", "cyan", "", regen)
+end
+
+function SetBag(name, line, wildcards)
+	bag = wildcards[1]
+	SetVariable("sf_bag", bag)
+	ColourNote("orange", "", "Bag set to: ", "cyan", "", bag)
+end
+
+]]>
+</script>
+</muclient>

@@ -1,0 +1,667 @@
+<muclient>
+<plugin
+   name="Nok3_WW_Extender_GUI"
+   author="Nokfah"
+   id="3f498d929793c12cb70f5999"
+   language="Lua"
+   purpose="Blank window skeleton"   
+   save_state="y"
+   version="2"
+   >
+</plugin>
+
+<aliases>
+	<alias
+	   script="ShowWindow"
+	   match="^xset show$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="HideWindow"
+	   match="^xset hide$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="MaximizeWindow"
+	   match="^xset max$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="MinimizeWindow"
+	   match="^xset min$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="ResetWindow"
+	   match="^xset reset gui$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	> 
+	</alias>
+	
+	<alias		
+		match="^xset buttons$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="ToggleButtons"
+	>
+	</alias>
+</aliases>
+
+<triggers>
+	<trigger name="campaign_status"
+		regexp="y" match="(You will have to level before you can go on another campaign.|You may take a campaign at this level.|## You may now take another campaign.|You may take another campaign.)"
+		enabled="y"
+		script="UpdateCampaignStatus"
+	>		
+	</trigger>
+		
+	<trigger name="campaign_timer"
+		regexp="y" match="^You cannot take another campaign for( (?<hours>[0-9]+) hours?,?)?( (and )?(?<minutes>[0-9]+) minutes?)?( (and )?(?<seconds>[0-9]+) seconds?)?\.$"
+		enabled="y"
+		script="UpdateCampaignTimer"
+	>		
+	</trigger>
+	
+	<trigger name="campaign_count"
+		regexp="y" match="^You have completed ([0-9]+) campaigns? today\.$"
+		enabled="y"
+		script="UpdateCampaignCount"
+	>		
+	</trigger>
+	
+	<trigger
+		regexp="y" match="CONGRATULATIONS! You have completed your campaign\."
+		enabled="y" script="MinimizeWindow"
+	>		
+	</trigger>	
+	
+	<trigger
+		regexp="y" match=".* tells you \'Good luck in your campaign!\'"
+		enabled="y" script="MaximizeWindow"
+	>		
+	</trigger>	
+</triggers>
+
+<script>
+<![CDATA[
+	require "serialize"	
+	
+	local campaign_status = "Unknown Status"
+	local campaign_count = "0"
+	local cp_timer = 0
+	local cp_timer_check = os.time()
+	local cp_timer_activated = false
+	
+	local cpList = {}
+	local gqList = {}
+	local itemHotspots = {}
+	
+	local buttons = GetVariable("Buttons") or "0"
+	
+	local offset = 0		
+	local longest_line = 100
+
+	local current_mode = "cp"	
+	
+	-- window variables
+	local z_order_plugin = "462b665ecb569efbf261422f"
+	local dragStart = nil	
+	local window = {}	
+	
+	function OnPluginInstall()						
+		if (GetVariable("window") ~= nil) then	
+			-- load saved variables if they exist
+			luastmt = "obj = " .. GetVariable("window")
+			assert (loadstring (luastmt or "")) ()		
+			window = obj
+		else
+			SetWindowDefaults() -- load window defaults
+		end							
+		
+		AddTimer("redraw_status", 0, 0, 1, "", timer_flag.Enabled + timer_flag.ActiveWhenClosed, "DrawCampaignStatus")
+		EnableTimer("redraw_status", false)
+		
+		InitializeWindow()				
+	end		
+	
+	function OnPluginClose()
+		DeleteWindow()
+	end
+	
+	function OnPluginBroadcast (msg, id, name, text)
+		-- Mapper Extender Plugin
+		if (id == "b6eae87ccedd84f510b74715") then -- Mapper Extender			
+			if (msg == 669) then					
+				-- load serialize.save_simple data
+				luastmt = "obj = " .. text
+				assert (loadstring (luastmt or "")) ()					
+			
+				cpList = obj				
+				
+				if (#cpList > 0) then MaximizeWindow() end
+				
+				DrawList("cp")				
+			elseif (msg == 670) then
+			-- load serialize.save_simple data
+				luastmt = "obj = " .. text
+				assert (loadstring (luastmt or "")) ()
+			
+				gqList = obj	
+
+				if (#gqList > 0) then MaximizeWindow() end
+				
+				DrawList("gq")				
+			end				
+		end
+	end	
+	
+	function ToggleButtons()
+		if (buttons == "1") then buttons = "0" 				
+		else buttons = "1" end
+
+		SetVariable("Buttons", buttons)
+		
+		Draw(window)		
+	end
+	
+	function UpdateCampaignStatus(name, line, wildcards)
+		campaign_status = wildcards[1]
+		
+		campaign_status = string.gsub(campaign_status, "You cannot take another campaign for ", "")
+		campaign_status = string.gsub(campaign_status, " before you can go on another campaign", "")
+		campaign_status = string.gsub(campaign_status, "## ", "")
+		campaign_status = string.sub(campaign_status, 1, -2)
+	
+		DrawCampaignStatus()
+	end	
+	
+	function UpdateCampaignTimer(name, line, wildcards)
+		cp_timer = 0
+		cp_timer = cp_timer + (tonumber(wildcards.hours) or 0) * 3600
+		cp_timer = cp_timer + (tonumber(wildcards.minutes) or 0) * 60
+		cp_timer = cp_timer + (tonumber(wildcards.seconds) or 0)
+		
+		cp_timer_check = os.time()
+		cp_timer_activated = true
+		
+		DrawCampaignStatus()
+	end
+	
+	function UpdateCampaignCount(name, line, wildcards)
+		campaign_count = wildcards[1]
+				
+		DrawCampaignStatus()
+	end
+	
+	-- window functions
+	function Draw(win)
+		local drawHeight = win.fontHeight
+		if (win.state == "max") then
+			drawHeight = win.height
+		end		
+	
+		-- miniwin background and outline
+		WindowResize(win.id, win.width, drawHeight, ColourNameToRGB("black"))
+		WindowRectOp(win.id, miniwin.rect_fill , 0, 0, win.width, drawHeight, ColourNameToRGB(window.backgroundColor))	
+		WindowRectOp(win.id, miniwin.rect_3d_rect , 0, 0, win.width, drawHeight, ColourNameToRGB(window.borderColor), ColourNameToRGB(window.borderColor))				
+				
+		DrawResize(window)
+				
+		DrawCampaignStatus()
+		
+		if (win.state == "max") then
+			-- Buttons
+			if (buttons == "1") then 		
+				offset = 36
+				DrawButton(5, 16, 30, 20, "go", "BtnGo", "Go to Room 1", 7)	
+				DrawButton(40, 16, 30, 20, "qs", "BtnQS", "Quick-Scan for your hunted mob", 7)		
+				DrawButton(75, 16, 30, 20, "nx", "BtnNext", "Go to Next Room", 7)		
+				DrawButton(110, 16, 30, 20, "ak", "BtnKill", "Auto-Kill last searched mob", 7)		
+				DrawButton(180, 16, 35, 20, "<*>", "BtnRefresh", "'Smart' Refresh Listing")
+				DrawButton(240, 16, 35, 20, "hta", "BtnHTA", "Abort hunt-trick")	
+				DrawButton(310, 16, 35, 20, "clr", "BtnClear", "Clear Window")
+			else 		
+				offset = 15
+			end
+
+			DrawList()
+		end		
+	end		
+	
+	function DrawResize(win)
+		-- resize bars
+		WindowLine(win.id, win.width-3,  win.height-2, win.width-2, win.height-3, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-4,  win.height-2, win.width-2, win.height-4, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-6,  win.height-2, win.width-2, win.height-6, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-7,  win.height-2, win.width-2, win.height-7, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-9,  win.height-2, win.width-2, win.height-9, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-10, win.height-2, win.width-2, win.height-10, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-12, win.height-2, win.width-2, win.height-12, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-13, win.height-2, win.width-2, win.height-13, ColourNameToRGB(window.backgroundColor), 0, 1)
+	end
+	
+	function time_string(seconds)
+		local hours = math.floor(seconds / 3600)
+		local minutes = math.floor((seconds % 3600) / 60)
+		local seconds = seconds % 60
+					
+		return hours .. "hr " .. minutes .. "m " .. seconds .. "s"
+	end
+	
+	function DrawCampaignStatus()			
+		WindowRectOp(window.id, miniwin.rect_fill, 0, 0, window.width, window.fontHeight, ColourNameToRGB("black"))		
+		WindowRectOp(window.id, miniwin.rect_3d_rect, 0, 0, window.width, window.fontHeight, ColourNameToRGB("lightgray"), ColourNameToRGB("lightgray"))		
+		
+		if cp_timer_activated then
+			local cp_timer_time = cp_timer - (os.time() - cp_timer_check)
+			if cp_timer_time > 0 then
+				campaign_status = "Next campaign in: " .. time_string(cp_timer_time)
+				EnableTimer("redraw_status", true)
+			else				
+				EnableTimer("redraw_status", false)
+				cp_timer_activated = false				
+				Simulate("## You may now take another campaign.\n")
+			end
+		end
+		
+		local textColor = "red"
+		if string.find(campaign_status, "You may") ~= nil then
+			textColor = "green"
+		end
+		
+		local text = {
+			{ text = "S&D | ", textcolor = ColourNameToRGB("white") },
+			{ text = campaign_count .. " | ", textcolor = ColourNameToRGB("white") },
+			{ text = campaign_status, textcolor = ColourNameToRGB(textColor) }
+		}
+		
+		DrawText(0, text)	
+	end
+	
+	function DrawList(mode)
+		if (mode ~= nil) then
+			current_mode = mode
+		end						
+
+		if (window.state == "max") then
+			ClearItemHotSpots()
+			WindowRectOp(window.id, miniwin.rect_fill, 1, offset, window.width-1, window.height-1, ColourNameToRGB("Black"))
+			DrawResize(window)
+			
+			if (current_mode == "cp") then
+				DrawItems(cpList)
+			elseif (current_mode == "gq") then
+				DrawItems(gqList)
+			end	
+		end
+	end
+	
+	function DrawItems(list)
+		-- draw items
+		local index = 0
+		local line_position = offset	
+		
+		-- get longest area name
+		local longestArea = 0
+		for key, value in ipairs(list) do
+			if value.areaId ~= nil then
+				longestArea = math.max(longestArea, string.len(value.areaId))
+			end
+		end
+		
+		local lastArea = ""				
+		
+		for key, value in ipairs(list) do				
+			index = index + 1				
+					
+			if (lastArea ~= value.areaId) then 														
+				lastArea = value.areaId				
+			else 
+				value.areaId = ""				
+			end					
+
+			local qty = ""
+			if (value.qty > 1) then
+				qty = string.format("%s * ", value.qty)
+			end
+			
+			local mobText = value.mob
+			local deadFlag = false
+			if (value.isDead ~= nil and value.isDead ~= "") then
+				mobText = "[Dead] " .. mobText
+				deadFlag = true
+			end
+								
+			local mobNote = ""
+			local mobNoteColor = "lightgray"
+			if (value.importantMob == 1) then
+				mobNote = "!!"
+				mobNoteColor = "limegreen"
+			end
+			if (not value.mobInDB) then 
+				mobNote = "??" 
+				mobNoteColor = "magenta"
+			end
+					
+			local text = {}
+			local area			
+			local areaColor = "lightgray"
+			local roomColor	= "lightblue"
+			local mobColor = "snow"					
+			if deadFlag then mobColor = "dimgray" end	
+										
+			-- room stuffs			
+			local room = value.roomName	
+			local levelRange = ""
+			if (value.type == "room") then	
+				levelRange = string.format("[%s-%s]", value.min, value.max)
+				room = value.roomName
+			elseif (value.type ~= "area") then -- unknown				
+				areaColor = "firebrick"
+			end	
+			local pkText = ""
+			if (value.info ~= nil and string.find(value.info, "pk") ~= nil) then
+				pkText = "[PK]"
+			end	
+					
+			local thisAreaLength = string.len(value.areaId)
+			local areaPadding = string.rep(" ", math.ceil((longestArea - thisAreaLength)/2))
+			
+			table.insert(text, { text = string.sub(index.." ", 1, 2), textcolor = ColourNameToRGB(mobNoteColor) })
+			table.insert(text, { text = "|", textcolor = ColourNameToRGB("lightgray") })
+			table.insert(text, 			
+				{ 				
+					text = string.format("%s", string.sub(areaPadding..value.areaId..areaPadding, 1, longestArea)), 
+					textcolor = ColourNameToRGB(areaColor) 
+				})
+			table.insert(text, { text = "|", textcolor = ColourNameToRGB("lightgray") })
+			table.insert(text, { text = mobNote, textcolor = ColourNameToRGB(mobNoteColor) })
+			table.insert(text, { text = qty, textcolor = ColourNameToRGB("cyan") })
+			table.insert(text, { text = mobText, textcolor = ColourNameToRGB(mobColor) })
+			table.insert(text, { text = string.format(" %s", levelRange), textcolor = ColourNameToRGB(roomColor) })
+			table.insert(text, { text = string.format(" %s", pkText), textcolor = ColourNameToRGB("red") })
+			table.insert(text, { text = room, textcolor = ColourNameToRGB(roomColor) })
+						
+			width = DrawText(line_position, text)						
+					
+			local hsLength = width - window.width
+			if (hsLength > 0) then hsLength = 0 end
+			local hsHeight = ((tonumber(index) * window.fontHeight) + 11 + offset) - window.height
+			if (hsHeight > 0) then hsHeight = 0 end			
+			
+			itemHotspots[#itemHotspots+1] = "A" .. index -- added an A so that hotspot appears on top
+			WindowAddHotspot(window.id, 
+				"A" .. index,  -- HS id
+				5, line_position, width, line_position + window.fontHeight-2, -- rectangle
+				"", "", "", "", "mouseup_item", 
+				"Click to perform the Item",  -- tooltip text
+				miniwin.cursor_hand, 0)  -- hand cursor
+				
+			line_position = line_position + window.fontHeight - 2
+			
+			-- Add a divider if the list calls for it
+			if list.dividers ~= nil and list.dividers[index] ~= nil then
+				line_position = line_position + 2
+				WindowLine(window.id, 1, line_position, window.width - 1, line_position, ColourNameToRGB("dimgray"), 0, 1);
+				line_position = line_position + 2
+			elseif list.probablyWrong ~= nil and list.probablyWrong == index then
+				line_position = line_position + 2
+				WindowLine(window.id, 1, line_position, window.width - 1, line_position, ColourNameToRGB("firebrick"), 0, 1);
+				line_position = line_position + 2
+			end
+		end							
+	end
+	
+	function DrawText(position, styles)
+		-- Utility function, draws text into the miniwin.
+		
+		local left = 5
+		if styles ~= nil then
+			for i, v in ipairs(styles) do
+				left = left + WindowText(window.id, window.font, v.text, left, position, 0, 0, v.textcolor, true)
+			end
+		end
+		
+		return left
+	end
+	
+	function InitializeWindow()
+		WindowCreate(window.id, window.left, window.top, window.width, window.height, miniwin.pos_center_all, miniwin.create_keep_hotspots, ColourNameToRGB(window.backgroundColor))
+		WindowFont(window.id, window.font, window.fontFamily, window.fontSize, false, false, false, false, 1, 0)
+		WindowPosition(window.id, window.left, window.top, miniwin.pos_stretch_to_view, miniwin.create_absolute_location)	
+
+		CreateHotSpots()
+		
+		if (window.show) then
+			WindowShow(window.id, window.show)				
+			if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				CallPlugin(z_order_plugin, "boostMe", window.id)
+			end
+			Draw(window)
+		end	
+	end
+	
+	function DeleteWindow()
+		WindowDelete(window.id)
+	end
+	
+	function ShowWindow()
+		window.show = true
+		WindowShow(window.id, true)
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "boostMe", window.id)
+		end
+		Draw(window)
+		SaveWindow()	
+	end
+	
+	function HideWindow()
+		window.show = false
+		WindowShow(window.id, false)
+		Draw(window)
+		SaveWindow()
+	end	
+	
+	function MinimizeWindow()
+		window.state = "min"
+		Draw(window)		
+		SaveWindow()
+	end
+	
+	function MaximizeWindow()
+		window.state = "max"
+		Draw(window)		
+		SaveWindow()
+	end
+	
+	function SaveWindow()
+		SetVariable("window", serialize.save_simple(window))
+	end	
+	
+	function SetWindowDefaults()
+		window = {
+			id = "window_" .. GetPluginID(),
+			top = 10,
+			left = 10,
+			width = 400,
+			height = 200,
+			show = true,
+			state = "max",
+			font = "defaultFont",
+			fontFamily = "Consolas",
+			fontSize = 9,
+			fontHeight = 15,
+			fontColor = "red",
+			borderColor = "lightgray",
+			backgroundColor = "black"
+		}
+	end
+	
+	function ResetWindow()
+		SetWindowDefaults()		
+		SaveWindow()	
+		InitializeWindow()				
+		Draw(window)		
+	end
+	
+	-- Hotspots
+	function CreateHotSpots()
+		WindowDeleteAllHotspots(window.id)
+	
+		WindowAddHotspot(window.id, "DragArea", 0, 0, window.width-13, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragArea", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaBottom", 0, window.height-13, window.width-13, window.height, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaBottom", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaRight", window.width-13, 0, window.width, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaRight", "dragmove", "dragrelease", 0)			
+		
+		WindowAddHotspot(window.id, "Resize", 
+			window.width-13, window.height-13, window.width-2, window.height-2,
+			"", "", "", "", "mouseup", "Drag to resize", miniwin.cursor_nw_se_arrow, 0)
+		WindowDragHandler(window.id, "Resize", "resizemove", "resizerelease", 0) 
+	end
+	
+	function DrawButton(left, top, width, height, text, hsName, hint, textOffset)
+		if (textOffset == nil) then
+			textOffset = 5
+		end
+
+		WindowRectOp (window.id, miniwin.rect_draw_edge, 
+			left, top, (left + width) - window.width, (top + height), 
+			miniwin.rect_edge_raised, 
+			miniwin.rect_edge_at_all + 
+			miniwin.rect_option_fill_middle)  -- raised, filled		
+			
+		WindowText(window.id, window.font, 
+			text,   -- button text
+			left + textOffset, top + 3, (left + width) - window.width, (top + height) ,        -- rectangle
+			ColourNameToRGB ("darkgreen"), -- colour
+			false)              -- not Unicode
+				
+		WindowAddHotspot(window.id, 
+			hsName,  -- HS id
+			left, top, (left + width) - window.width, (top + height),  -- rectangle
+			"", "", "", "", "mouseup", 
+			"Click to " .. (hint or text),  -- tooltip text
+			miniwin.cursor_hand, 0)
+	end
+	
+	function ClearItemHotSpots()				
+		for key, value in ipairs(itemHotspots) do			
+			WindowDeleteHotspot (window.id, value);
+		end
+		
+		itemHotspots = {}
+	end
+	
+	-- Handlers		
+	function dragmove(flags, hotspot_id)							
+		if (not dragStart) then
+			dragStart = {
+				x = WindowInfo(window.id, 14),
+				y = WindowInfo(window.id, 15),
+			}
+		end		
+		
+		WindowPosition(window.id, 
+						WindowInfo (window.id, 17) - dragStart.x, 
+						WindowInfo (window.id, 18) - dragStart.y, 
+						miniwin.pos_stretch_to_view, 
+						miniwin.create_absolute_location)
+	end
+
+	function dragrelease(flags, hotspot_id)		
+		window.left = WindowInfo(window.id, 10)
+		window.top = WindowInfo(window.id, 11)
+		
+		dragStart = nil
+		
+		SaveWindow()
+	end
+	
+	function resizemove(flags, hotspot_id) 
+		window.width = WindowInfo(window.id, 17) - WindowInfo(window.id, 10)
+		window.height = WindowInfo(window.id, 18) - WindowInfo(window.id, 11)
+		
+		WindowResize(window.id, window.width, window.height, ColourNameToRGB("gray"))
+		WindowShow(window.id, true)
+	end -- dragmove
+
+	function resizerelease(flags, hotspot_id)
+		SaveWindow()
+				
+		CreateHotSpots()
+		
+		Draw(window)
+	end -- dragrelease
+	
+	function mouseup(flags, hotspot_id)			
+		if (bit.band(flags, miniwin.hotspot_got_rh_mouse) ~= 0) then
+			-- right click
+			local result = WindowMenu(window.id, 
+				WindowInfo(window.id, 14),
+				WindowInfo(window.id, 15),
+				"Bring to front|Send to back|-|Minimize|Maximize")		
+			
+			if (result ~= "" and IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				if (result == "Send to back") then 
+					CallPlugin(z_order_plugin, "dropMe", window.id)
+				elseif (result =="Bring to front") then
+					CallPlugin(z_order_plugin, "boostMe", window.id)
+				elseif (result =="Minimize") then MinimizeWindow()
+				elseif (result =="Maximize") then MaximizeWindow()
+				end							
+			end
+		else
+			-- left click
+			if (hotspot_id == "BtnGo") then        Execute("go")		
+			elseif (hotspot_id == "BtnNext") then  Execute("nx")		
+			elseif (hotspot_id == "BtnQS") then    Execute("qs")
+			elseif (hotspot_id == "BtnKill") then  Execute("autokill")
+			elseif (hotspot_id == "BtnHTA") then   Execute("ht a")
+			elseif (hotspot_id == "BtnRefresh") then
+				if (current_mode == "cp") then
+					Execute("cp c")
+				elseif (current_mode == "gq") then
+					Execute("gq c")
+				end				
+			elseif (hotspot_id == "BtnClear") then
+				cpList = {}
+				gqList = {}
+				DrawList()								
+			end
+		end		
+	end
+	
+	function mouseup_item(flags, hotspot_id)
+		if (hotspot_id ~= nil) then
+			if (current_mode == "cp") then
+				Execute("xcp " .. string.sub(hotspot_id, 2, -1))
+			elseif (current_mode == "gq") then
+				Execute("xgq " .. string.sub(hotspot_id, 2, -1))
+			end
+		end
+	end
+]]>
+</script>
+
+</muclient>

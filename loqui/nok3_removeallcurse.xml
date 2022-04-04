@@ -1,0 +1,45 @@
+<muclient>		
+	<triggers>							
+		<trigger 
+			name="continue_remove"			
+			enabled="n"
+			sequence="100"
+			match="^(.+(glows momentarily but nothing happens|glows blue)|You lost your concentration while trying to cast remove curse)\.$"			
+			regexp="y"
+			send_to="12"
+		>
+		<send>
+			Send("heal curse")
+		</send>
+		</trigger>
+		
+		<trigger 
+			name="finish_remove"			
+			enabled="n"
+			sequence="100"
+			match="*uncurse spell had no effect on you."						
+			send_to="12"
+		>
+		<send>
+			EnableTrigger("continue_remove", false)
+			EnableTrigger("finish_remove", false)
+		</send>
+		</trigger>
+	</triggers>
+		
+	<aliases>
+		<alias 
+			name="start_removal"			
+			enabled="y"
+			sequence="100"
+			match="removeallcurse"	
+			send_to="12"
+		>
+		<send>
+			EnableTrigger("continue_remove", true)
+			EnableTrigger("finish_remove", true)
+			Send("heal curse")
+		</send>			
+		</alias>	
+	</aliases>	
+</muclient>

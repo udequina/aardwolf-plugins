@@ -1,0 +1,91 @@
+<muclient>
+	<plugin
+		name="Nok3_lbid_Match"
+		author="Nokfah"
+		id="a5b514d09df80b4093cabbfe"
+		language="Lua"
+		purpose="Filters market item here by a specified string"		
+	>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>	
+		
+	<aliases>
+		<alias
+		    name="lbid_match_start"			
+			script="lbid_match_start"
+			enabled="y"
+			match="^lbidmatch (.*)$"			
+			regexp="y"			
+		>
+		</alias>
+	</aliases>	
+		
+	<triggers>								
+		<trigger
+			name="lbid_match_end"
+			script="lbid_match_end"
+			enabled="n"
+			sequence="1"
+		    match="^------------------------------------------------------------------------------$"
+			omit_from_output="y"
+		    regexp="y"
+		>
+		</trigger>			
+		
+		<trigger
+			name="capture_pagesize"
+			script="capture_pagesize"
+			enabled="y"
+			sequence="100"
+		    match="^You currently display (\d+) lines per page\.$"
+		    regexp="y"
+		>
+		</trigger>
+	</triggers>
+				
+	<script>
+	<![CDATA[	
+		local pagesize = 0		
+	
+		function capture_pagesize(line, name, wildcards)
+			pagesize = tonumber(wildcards[1])		
+	    end
+		
+		function lbid_match_start(name, line, wildcards)
+			ColourNote("orange", "", "Looking for: ", "lime", "", wildcards[1])
+			EnableTrigger("lbid_match_end", true)					
+			
+			-- capture pagesize
+			SendNoEcho("pagesize")
+			SendNoEcho("pagesize 0")
+			
+			-- create a gag trigger
+			AddTrigger("gag_not_matching", "^((?!" .. wildcards[1] .. ").)*$", "", 
+			 	trigger_flag.Enabled +  trigger_flag.OmitFromOutput + trigger_flag.KeepEvaluating + trigger_flag.IgnoreCase + trigger_flag.RegularExpression,
+			 	custom_colour.NoChange, 0, "", "")
+			
+			-- (HACK) disable aarcheology plugin
+			EnablePlugin("3ae386f3fb52d4eeabdb8e27", false)
+			
+			-- lbid			
+			SendNoEcho("lbid")
+		end
+		
+		function lbid_match_end()				
+			ColourNote("orange", "", "End of match")
+			EnableTrigger("lbid_match_end", false)
+			
+			-- delete gag trigger
+			DeleteTrigger("gag_not_matching")
+			
+			-- restore pagesize
+			SendNoEcho("pagesize " .. pagesize)	
+
+			-- (HACK) enable aarcheology plugin			
+			EnablePlugin("3ae386f3fb52d4eeabdb8e27", true)			
+	    end		
+	]]>
+	</script>
+</muclient>

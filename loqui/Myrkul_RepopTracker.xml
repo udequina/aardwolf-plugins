@@ -1,0 +1,604 @@
+<muclient>
+<plugin
+   name="Myrkul_RepopTracker"
+   author="Myrkul"
+   id="5b4358e3d8e2a730f8efa8e4"
+   language="Lua"
+   purpose="Track area repop times."
+   date_written="2012-10-08 20:15:02"
+   requires="4.72"
+   version="2.2"
+   save_state="y"
+   >
+   <description trim="n">
+		<![CDATA[
+==================== Repop Timer Help ====================
+repop <area>(optional) <channel>(optional)
+                - Casts sense life and starts a timer
+                  Optional parameter to check for a specific area instead of your current area
+                  Optional parameter to output to a different channel
+
+repop show|hide - Shows or hides the minwin                           						  
+	]]>
+	</description>
+</plugin>
+
+<aliases>	
+	<alias
+	   script="repop"
+	   match="^repop(?: (\w+))?(?: ([\w ]+))?$"
+	   enabled="y"
+	   regexp="y"
+	   sequence="200"
+	   ignore_case="y"
+	>
+	</alias>	
+	
+	<alias
+		script="resetpop"
+		match="^resetpop(?: (\w+))?$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+	>
+	</alias>
+
+	<alias
+	   script="ShowWindow"
+	   match="^repop show$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="HideWindow"
+	   match="^repop hide$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+
+	<alias
+	   script="SetChannel"
+	   match="^repop channel (.*)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+</aliases>
+
+<triggers>
+	<trigger
+		regexp="y" match="^The Avalanche Slalom is covered with dry powder snow\.$"
+		enabled="y" script="IFSlopeRepop"
+	></trigger>	
+	
+	<trigger
+		regexp="y" match="^Darkness bleeds across Icefall\.$"
+		enabled="y" script="IFMainRepop"
+	></trigger>
+
+	<trigger
+		name="slminutes"
+		enabled="n"
+		group="rttriggers"
+		script="slminutes"
+		match="^You sense that life will return to this area in roughly ((\d+)\-(\d+) minutes)\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+	<trigger
+		name="slseconds"
+		enabled="n"
+		group="rttriggers"
+		script="slseconds"
+		match="^You sense that life will return to this area within (.+)\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+	<trigger
+		name="slfail"
+		enabled="n"
+		group="rttriggers"
+		script="slfail"
+		match="^You lost your concentration while trying to cast sense life\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+	<trigger
+		name="slimpossible"
+		enabled="n"
+		group="rttriggers"
+		script="slimpossible"
+		match="^You cannot determine when life will return to this area\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+	
+	<trigger
+		name="slcombat"
+		enabled="n"
+		group="rttriggers"
+		script="slimpossible"
+		match="^You can't concentrate enough to cast 'sense life'\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+</triggers>
+
+<script>
+<![CDATA[
+	require "serialize"
+	require "gmcphelper"
+
+	local rtarea
+	local currentArea = "unknown"
+	local repoptimes = {}
+	local sensetimes = {}
+	local color1 = "@D"
+	local color2 = "@r"
+	local color3 = "@W"
+	local channel = GetVariable("channel") or "gtell"
+	local rptStart = color1 .. "[" .. color2 .. "REPOP" .. color1 .. "|"
+	local rptEnd = color1 .. "]"
+
+	local ifInit = false
+	repoptimes["ifmain"] = os.time()
+	repoptimes["ifslopes"] = os.time()
+	
+	-- window variables
+	local z_order_plugin = "462b665ecb569efbf261422f"
+	local dragStart = nil
+	local window = {
+		id = "repop" .. GetPluginID(),
+		top = 10,
+		left = 10,
+		width = 200,
+		height = 50,
+		show = true,
+		font = "defaultFont",
+		fontFamily = "Consolas",
+		fontSize = 9		
+	}
+	if (GetVariable("repop_window") ~= nil) then			
+		luastmt = "obj = " .. GetVariable("repop_window")
+		assert (loadstring (luastmt or "")) ()		
+		window = obj
+	end	
+	
+	function SetChannel(name, line, wildcards)
+		channel = wildcards[1]
+		SetVariable("channel", channel)
+		ColourNote("orange", "", "Channel set to: ", "cyan", "", channel)
+	end
+
+	function resetpop(name, line, wildcards)
+		local area = currentArea
+		if string.len(wildcards[1]) > 0 then
+			area = wildcards[1]
+		end
+		sensetimes[area] = nil
+		repoptimes[area] = nil
+	end
+
+	function IFMainRepop()
+		ifInit = true
+		repoptimes["ifmain"] = os.time()		
+	end
+
+	function IFSlopeRepop()
+		ifInit = true
+		repoptimes["ifslopes"] = os.time()	
+	end
+
+	function repop(name, line, wildcards)
+		local areaSpecified = wildcards[1] ~= nil and wildcards[1] ~= ""
+
+		if (areaSpecified and wildcards[1] == "icefall") or (not areaSpecified and currentArea == "icefall") then
+			local now = os.time()
+
+			local sinceMain = now - repoptimes["ifmain"]
+			local mainStr = "@Bmain" .. color1 .. " - " ..formattime(sinceMain)
+			if sinceMain < 600 then mainStr = mainStr .. color1 .. "|" .. formattime(600 - sinceMain) end
+
+			local sinceSlopes = now - repoptimes["ifslopes"]
+			local slopesStr = "@Wslopes" .. color1 .. " - " .. formattime(sinceSlopes)
+			if sinceSlopes < 600 then slopesStr = slopesStr .. color1 .. "|" .. formattime(600 - sinceSlopes)  end
+
+			SendNoEcho(channel .. " " .. rptStart .. mainStr .. "   " .. slopesStr .. rptEnd)
+		elseif (areaSpecified) then
+			checkpop(wildcards[1], wildcards[2])
+		else			
+			trackpop()
+		end		
+	end
+	
+	function trackpop()
+		resetvars()
+		local area = currentArea
+
+		if sensetimes[area] then
+			checkpop(area)
+		else
+			EnableTriggerGroup("rttriggers", true)			
+			Send("cast 'sense life'")
+		end		
+	end	
+
+	function slminutes(name, line, wildcards)
+		local entry = {}		
+		local zone = currentArea
+		local time = os.time()
+		if repoptimes[zone] then
+			local repoptime = repoptimes[zone]
+			local seconds = (repoptime % 60) - (time % 60)
+			if seconds < 0 then seconds = seconds + 60 end
+			local sensetime = time + (60 * tonumber(wildcards[2])) + seconds
+			entry["time"] = sensetime
+			entry["certain"] = true
+			local timerseconds = sensetime - time - 30
+			AddTimer("repop_" .. zone, 0, math.floor(timerseconds / 60), timerseconds % 60, channel .. " " .. rptStart .. color3 .. zone .. color2 .. " = " ..color3.. "30" .. color1 .. "s" .. rptEnd, timer_flag.Enabled + timer_flag.OneShot + timer_flag.Replace + timer_flag.Temporary, "")
+		else
+			entry["time"] = os.time() + (60 * tonumber(wildcards[3]))
+			entry["certain"] = false
+			AddTimer("repop_" .. zone, 0, tonumber(wildcards[2]), 0, channel .. " " .. rptStart .. color3 .. zone .. color2 .. " < " .. color3 .. "60" .. color1 .. "s" .. rptEnd, timer_flag.Enabled + timer_flag.OneShot + timer_flag.Replace + timer_flag.Temporary, "")
+		end
+		sensetimes[zone] = entry
+		Execute("repop " .. zone)
+		EnableTriggerGroup("rttriggers", false)		
+	end
+
+	function slseconds(name, line, wildcards)
+		local entry = {}		
+		local zone = currentArea
+		local time = os.time()
+		if repoptimes[zone] then
+			local repoptime = repoptimes[zone]
+			local seconds = (repoptime % 60) - (time % 60)
+			if seconds < 0 then seconds = seconds + 60 end
+			entry["time"] = time + seconds
+			entry["certain"] = true
+		else
+			local sensetime = 60
+			if wildcards[1] == "the next 30 seconds" then sensetime = 30 end
+			entry["time"] = time + sensetime
+			entry["certain"] = false
+		end
+		sensetimes[zone] = entry
+		Execute("repop " .. zone)
+		EnableTriggerGroup("rttriggers", false)
+	end
+
+	function slfail(name, line, wildcards)
+		Send("cast 'sense life'")
+	end
+
+	function slimpossible(name, line, wildcards)
+		EnableTriggerGroup("rttriggers", false)
+	end
+
+	function checkpop(area, reportChannel)
+		local reportArea = currentArea
+		if (area ~=  nil and area ~= "") then reportArea = area end
+		
+		local reportTo = channel
+		if (reportChannel ~=  nil and reportChannel ~= "") then reportTo = reportChannel end
+		
+		local now = os.time()
+		resetvars()
+		
+		if sensetimes[reportArea] then					
+			local certain = "< "
+			if sensetimes[reportArea].certain then certain = "= " end
+			SendNoEcho(reportTo .. " " .. rptStart .. color3 .. reportArea .. " " .. color2 .. certain .. formattime(sensetimes[reportArea].time - now) .. rptEnd)
+		else
+			-- check for a partial match
+			for areaName, info in pairs(sensetimes) do
+				if (string.find(areaName, reportArea) ~= nil) then 
+					checkpop(areaName, channel)
+					return
+				end
+			end
+			
+			Note("No repop data for " .. reportArea .. "!")
+		end
+	end
+	
+	function resetvars()
+		local now = os.time()
+		for k, v in pairs(sensetimes) do
+			if now >= v["time"] then
+				sensetimes[k] = nil
+			end
+		end
+		for k, v in pairs(repoptimes) do
+			if now - v > 1800 and k ~= "ifmain" and k ~= "ifslopes" then
+				repoptimes[k] = nil
+			end
+		end
+	end
+	
+	function formattimenocolor(time)
+		local seconds = time % 60
+		time = math.floor(time / 60)
+		local minutes = time % 60
+		time = math.floor(time / 60)
+		local hours = time % 24
+		local days = math.floor(time / 24)
+		local out = ""
+		
+		if days > 0 then
+			out = out .. " " .. days .. "d"			
+		end
+		if hours > 0 then
+			out = out .. " " .. hours .. "h"			
+		end
+		if minutes > 0 then
+			out = out .. " " .. minutes .. "m"						
+		end
+		
+		out = out .. " " .. string.sub("0"..seconds, -2, -1) .. "s"					
+		
+		return out
+	end
+	
+	function formattime(time)
+		local seconds = time % 60
+		time = math.floor(time / 60)
+		local minutes = time % 60
+		time = math.floor(time / 60)
+		local hours = time % 24
+		local days = math.floor(time / 24)
+		local out = ""
+		if days > 0 then
+			out = out .. color3 .. " " .. days .. color1 .. "d"			
+		end
+		if hours > 0 then
+			out = out .. color3 .." " .. hours .. color1 .. "h"			
+		end
+		if minutes > 0 then
+			out = out .. color3 .. " " .. minutes .. color1 .. "m"						
+		end
+
+		out = out .. color3 .. " " .. string.sub("0"..seconds, -2, -1) .. color1 .. "s"	
+
+		return string.sub(out, 1, 2) .. string.sub(out, 4, -1)
+	end
+	
+	function OnPluginInstall()			
+		WindowCreate(window.id, window.left, window.top, window.width, window.height, miniwin.pos_center_all, miniwin.create_keep_hotspots, ColourNameToRGB("black"))
+		WindowFont(window.id, window.font, window.fontFamily, window.fontSize, false, false, false, false, 1, 0)
+		WindowPosition(window.id, window.left, window.top, miniwin.pos_stretch_to_view, miniwin.create_absolute_location)			
+		
+		HotSpots()
+		
+		if (window.show) then
+			WindowShow(window.id, window.show)				
+			if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				CallPlugin(z_order_plugin, "boostMe", window.id)
+			end
+			Draw(window)
+		end
+		
+		AddTimer("DrawTimers", 0, 0, 1, "", timer_flag.Enabled + timer_flag.ActiveWhenClosed, "DrawTimers")
+	end	
+	
+	function OnPluginBroadcast (msg, id, name, text)
+		if (id == '3e7dedbe37e44942dd46d264') then
+			if (text == "comm.repop") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","comm.repop")
+				luastmt = "gmcpdata = " .. gmcparg
+				assert (loadstring (luastmt or "")) ()
+				local zone = gmcpval("zone")
+				repoptimes[zone] = os.time()
+				sensetimes[zone] = nil
+			elseif (text == "room.info") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+				luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				assert (loadstring (luastmt or "")) ()
+								
+				DeleteTimer("repop_" .. gmcpdata.zone)
+
+				currentArea = gmcpdata.zone																									 
+			end
+		end
+	end
+
+	
+	function DrawTimers()
+		if (window.show) then
+			Draw(window) 
+			WindowShow(window.id, window.show)
+		end
+	end
+	
+	function Draw(win)
+		-- Miniwin background and outline
+		WindowRectOp(win.id, miniwin.rect_fill , 0, 0, win.width, win.height, ColourNameToRGB("black"))	
+		WindowRectOp(win.id, miniwin.rect_3d_rect , 0, 0, win.width, win.height, ColourNameToRGB("darkred"), ColourNameToRGB("darkred"))				
+		
+		-- resize bars
+		WindowLine(win.id, win.width-3,  win.height-2, win.width-2, win.height-3, ColourNameToRGB("darkred"), 0, 2)
+		WindowLine(win.id, win.width-4,  win.height-2, win.width-2, win.height-4, ColourNameToRGB("black"), 0, 1)
+		WindowLine(win.id, win.width-6,  win.height-2, win.width-2, win.height-6, ColourNameToRGB("darkred"), 0, 2)
+		WindowLine(win.id, win.width-7,  win.height-2, win.width-2, win.height-7, ColourNameToRGB("black"), 0, 1)
+		WindowLine(win.id, win.width-9,  win.height-2, win.width-2, win.height-9, ColourNameToRGB("darkred"), 0, 2)
+		
+		local line = 0
+		for repop, info in spairs(sensetimes, function(t,a,b) return t[a].time < t[b].time end ) do
+			if (info.time > os.time()) then
+				local certain = "<"
+				if (info.certain) then certain = "=" end
+				
+				WindowText(win.id, win.font, repop, 5, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+				local timeText = certain .. formattimenocolor(info.time - os.time())
+				local timeWidth = WindowTextWidth(win.id, win.font, timeText, true)
+				WindowText(win.id, win.font, timeText, win.width - timeWidth - 4, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+				line = line + 1
+			end
+		end
+
+		if ifInit then
+			local now = os.time()
+
+			-- main			
+			WindowText(win.id, win.font, "IF main", 5, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+			local sinceMain = now - repoptimes["ifmain"]
+			local mainStr = formattimenocolor(sinceMain)
+			if sinceMain < 600 then mainStr = mainStr .. " |" .. formattimenocolor(600 - sinceMain) end
+			local mainWidth = WindowTextWidth(win.id, win.font, mainStr, true)
+			WindowText(win.id, win.font, mainStr, win.width - mainWidth - 4, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+			line = line + 1
+
+			-- slopes
+			WindowText(win.id, win.font, "IF slopes", 5, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+			local sinceSlopes = now - repoptimes["ifslopes"]
+			local slopesStr = formattimenocolor(sinceSlopes)
+			if sinceSlopes < 600 then slopesStr = slopesStr .. " |" .. formattimenocolor(600 - sinceSlopes) end
+			local slopesWidth = WindowTextWidth(win.id, win.font, slopesStr, true)
+			WindowText(win.id, win.font, slopesStr, win.width - slopesWidth - 4, line * (win.fontSize+5), 0, 0, ColourNameToRGB("white"), true)
+			line = line + 1
+		end
+		
+		if (line == 0) then
+			WindowText(win.id, win.font, "No repop timers", 5, line * (win.fontSize+2), 0, 0, ColourNameToRGB("white"), true)
+		end
+	end
+	
+	function dragmove(flags, hotspot_id)							
+		if (not dragStart) then
+			dragStart = {
+				x = WindowInfo(window.id, 14),
+				y = WindowInfo(window.id, 15),
+			}
+		end		
+		
+		WindowPosition(window.id, 
+						WindowInfo (window.id, 17) - dragStart.x, 
+						WindowInfo (window.id, 18) - dragStart.y, 
+						miniwin.pos_stretch_to_view, 
+						miniwin.create_absolute_location)
+	end
+
+	function dragrelease(flags, hotspot_id)		
+		window.left = WindowInfo(window.id, 10)
+		window.top = WindowInfo(window.id, 11)
+		
+		dragStart = nil
+		
+		SaveWindow()
+	end
+	
+	function resizemove(flags, hotspot_id) 
+		window.width = WindowInfo(window.id, 17) - WindowInfo(window.id, 10)
+		window.height = WindowInfo(window.id, 18) - WindowInfo(window.id, 11)
+		
+		WindowResize(window.id, window.width, window.height, ColourNameToRGB("gray"))
+		WindowShow(window.id, true)
+	end -- dragmove
+
+	function resizerelease(flags, hotspot_id)
+		SaveWindow()
+				
+		HotSpots()
+		
+		Draw(window)
+	end -- dragrelease
+	
+	function mouseup(flags, hotspot_id)		
+		if (bit.band(flags, miniwin.hotspot_got_rh_mouse) ~= 0) then
+			local result = WindowMenu(window.id, 
+				WindowInfo(window.id, 14),
+				WindowInfo(window.id, 15),
+				"Bring to front|Send to back")		
+			
+			if (result ~= "" and IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				if (result == "Send to back") then 
+					CallPlugin(z_order_plugin, "dropMe", window.id)
+				else
+					CallPlugin(z_order_plugin, "boostMe", window.id)
+				end
+			end
+		end
+	end
+	
+	function ShowWindow()
+		window.show = true
+		WindowShow(window.id, true)
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "boostMe", window.id)
+		end
+		DrawTimers()
+		SaveWindow()	
+	end
+	
+	function HideWindow()
+		window.show = false
+		WindowShow(window.id, false)
+		DrawTimers()
+		SaveWindow()
+	end
+	
+	function HotSpots()
+		WindowDeleteAllHotspots(window.id)
+	
+		WindowAddHotspot(window.id, "DragArea", 0, 0, window.width-13, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragArea", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaBottom", 0, window.height-13, window.width-13, window.height, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaBottom", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaRight", window.width-13, 0, window.width, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaRight", "dragmove", "dragrelease", 0)			
+		
+		WindowAddHotspot(window.id, "Resize", 
+			window.width-13, window.height-13, window.width-2, window.height-2,
+			"", "", "", "", "mouseup", "Drag to resize", miniwin.cursor_nw_se_arrow, 0)
+		WindowDragHandler(window.id, "Resize", "resizemove", "resizerelease", 0) 
+	end
+	
+	function SaveWindow()
+		SetVariable("repop_window", serialize.save_simple(window))
+	end
+	
+	function spairs(t, order)
+		-- collect the keys
+		local keys = {}
+		for k in pairs(t) do keys[#keys+1] = k end
+
+		-- if order function given, sort by it by passing the table and keys a, b,
+		-- otherwise just sort the keys 
+		if order then
+			table.sort(keys, function(a,b) return order(t, a, b) end)
+		else
+			table.sort(keys)
+		end
+
+		-- return the iterator function
+		local i = 0
+		return function()
+			i = i + 1
+			if keys[i] then
+				return keys[i], t[keys[i]]
+			end
+		end
+	end
+]]>
+</script>
+
+</muclient>

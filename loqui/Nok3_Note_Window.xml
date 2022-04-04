@@ -1,0 +1,528 @@
+<muclient>
+<plugin
+   name="Nok3_Note_Window"
+   author="Nokfah"
+   id="1e3211e3d2c1b730f8efa8e4"
+   language="Lua"
+   purpose="Displays the current room's notes in a window"   
+   save_state="y"
+   version="1.1"
+   >
+   	<description trim="n">
+		<![CDATA[
+==================== Note Window Help ====================	
+notewin area            -- window displays all notes in the area 
+
+ce #                    -- execute the cexit shown in the notewin
+
+notewin width <#>       -- adjusts the width before notes will wrap to another line
+notewin maxlines <#>    -- adjusts the maximum number of lines to display in the window
+
+notewin show/hide       -- window will/will not display in rooms with notes
+
+notewin fontcolor <color>      -- changes the font color
+notewin cexitfontcolor <color> -- changes the cexit font color color
+notewin backcolor <color>      -- changes the background color
+notewin bordercolor <color>    -- changes the border color
+
+
+notewin reset -- window height/width resets to initial setting
+]]>
+		</description>
+</plugin>
+
+<aliases>	
+	<alias
+	   script="Help"
+	   match="^notewin help$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="ShowAreaNotes"
+	   match="^notewin area$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="ExecuteCexit"
+	   match="^ce ([0-9])$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetTextWidth"
+	   match="^notewin width ([0-9]+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetFontColor"
+	   match="^notewin fontcolor (\w+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetCexitFontColor"
+	   match="^notewin cexitfontcolor (\w+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetBackColor"
+	   match="^notewin backcolor (\w+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetBorderColor"
+	   match="^notewin bordercolor (\w+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="SetMaxLines"
+	   match="^notewin maxlines ([0-9]+)$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="ShowWindow"
+	   match="^notewin show$"
+	   enabled="y" regexp="y" 
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="HideWindow"
+	   match="^notewin hide$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+	
+	<alias
+	   script="ResetWindow"
+	   match="^notewin reset$"
+	   enabled="y" regexp="y"
+	   sequence="100" ignore_case="y"
+	>
+	</alias>
+</aliases>
+
+<script>
+<![CDATA[
+	require "serialize"	
+	
+	local gmcproom = {}	
+	local currentArea	
+	
+	local notes = {}
+	local cexits = {}
+	
+	-- default settings
+	local settings = {
+		textWidth = 124,
+		maxLines = 5		
+	}
+	
+	-- window variables
+	local z_order_plugin = "462b665ecb569efbf261422f"
+	local dragStart = nil	
+	local window = {}	
+	
+	function OnPluginInstall()	
+		Help()
+	
+		if (GetVariable("window") ~= nil) then	
+			-- load saved variables if they exist
+			luastmt = "obj = " .. GetVariable("window")
+			assert (loadstring (luastmt or "")) ()		
+			window = obj
+		else
+			SetWindowDefaults() -- load window defaults
+		end	
+
+		if (GetVariable("settings") ~= nil) then	
+			-- load saved variables if they exist
+			luastmt = "obj = " .. GetVariable("settings")
+			assert (loadstring (luastmt or "")) ()		
+			settings = obj		
+		end	
+		
+		InitializeWindow()				
+	end	
+	
+	function OnPluginClose()
+		DeleteWindow()
+	end
+	
+	function OnPluginBroadcast (msg, id, name, text)
+		-- Look for GMCP handler.
+		if (id == '3e7dedbe37e44942dd46d264') then
+			if (text == "room.info") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info")
+
+				luastmt = "gmcpdata = " .. gmcparg
+				assert (loadstring (luastmt or "")) ()
+
+				gmcproom = gmcpdata
+				currentArea = gmcproom.zone
+				ShowRoomNotes()				
+			end
+		end
+	end	
+	
+	function Help()
+		ColourNote("orange", "", GetPluginInfo (GetPluginID (), 3))		
+	end
+	
+	-- settings
+	function SetTextWidth(name, line, wildcards)
+		settings.textWidth = tonumber(wildcards[1])		
+		SaveSettings()		
+		ColourNote("orange", "", "NoteWin: Text width set to ", "cyan", "", tostring(settings.textWidth))
+	end
+	
+	function SetMaxLines(name, line, wildcards)
+		settings.maxLines = tonumber(wildcards[1])
+		SaveSettings()		
+		ColourNote("orange", "", "NoteWin: Max lines set to ", "cyan", "", tostring(settings.maxLines))
+	end	
+	
+	function SaveSettings()
+		SetVariable("settings", serialize.save_simple(settings))
+	end
+	
+	function ExecuteCexit(name, line, wildcards)
+		local num = tonumber(wildcards[1])
+		if cexits[num] ~= nil then
+			Execute(cexits[num].exitDir)
+		else
+			ColourNote("orange", "", "No cexit to execute")
+		end		
+	end
+	
+	-- db lookups
+	function ShowRoomNotes()	
+		notes = {}
+		cexits = {}
+	
+		local db = assert (sqlite3.open(GetInfo (66) .. string.gsub(WorldName(), "[^%w%s()_-]", "") .. ".db"))						
+		
+		-- Get notes
+		local select = "SELECT r.name, b.notes FROM rooms r" .. 
+					   " INNER JOIN bookmarks b ON r.uid = b.uid" ..
+					   " WHERE r.uid = \'" .. gmcproom.num .. "\'"
+					
+		for roomName, roomNotes in db:urows(select) do
+			table.insert(notes, { room = roomName, text = roomNotes })								
+		end							
+		
+		-- Get cexits
+		local select = "SELECT r.name, e.dir FROM rooms r" .. 
+					   " INNER JOIN exits e ON r.uid = e.fromuid" ..
+					   " WHERE r.uid = \'" .. gmcproom.num .. "\' " ..
+					   " AND e.dir not in (\'n\', \'e\', \'s\', \'w\', \'u\', \'d\')"
+					
+		for roomName, dir in db:urows(select) do			
+			table.insert(cexits, { room = roomName, exitDir = dir })								
+		end	
+		
+		db:close()
+		
+		Draw(window)
+	end
+	
+	function ShowAreaNotes()
+		notes = {}
+		cexits = {}
+	
+		local db = assert (sqlite3.open(GetInfo (66) .. string.gsub(WorldName(), "[^%w%s()_-]", "") .. ".db"))						
+		
+		local select = "SELECT r.name, b.notes FROM rooms r" .. 
+					   " INNER JOIN bookmarks b ON r.uid = b.uid" ..
+					   " WHERE r.area = \'" .. currentArea .. "\'"
+					
+		for roomName, roomNotes in db:urows(select) do
+			table.insert(notes, { room = roomName, text = roomNotes })								
+		end							
+		
+		db:close()
+		
+		Draw(window)
+	end
+	
+	-- window functions
+	function Draw(win)									
+		-- figure out how many lines of notes		
+		local lblLen = 23
+		local totalLines = 0
+		
+		for i, note in ipairs(notes) do
+			totalLines = totalLines + math.ceil((string.len(note.text) + lblLen)/settings.textWidth)
+		end
+		
+		for i, cexit in ipairs(cexits) do
+			totalLines = totalLines + math.ceil((string.len(cexit.exitDir) + lblLen)/settings.textWidth)
+		end
+		
+		-- respect the max lines setting
+		totalLines = math.min(settings.maxLines, totalLines)
+		
+		if (totalLines == 0) then
+			WindowShow(window.id, false)
+		elseif (totalLines > 0 and window.show) then	
+			WindowShow(window.id, true)
+		end
+		
+		-- resize the window
+		window.height = totalLines * (window.fontSize + 2) + 8
+		WindowResize(window.id, window.width, window.height, ColourNameToRGB("black"))		
+		
+		-- miniwin background and outline
+		WindowRectOp(win.id, miniwin.rect_fill , 0, 0, win.width, win.height, ColourNameToRGB(window.backgroundColor))	
+		WindowRectOp(win.id, miniwin.rect_3d_rect , 0, 0, win.width, win.height, ColourNameToRGB(window.borderColor), ColourNameToRGB(window.borderColor))				
+		
+		-- resize bars
+		WindowLine(win.id, win.width-3,  win.height-2, win.width-2, win.height-3, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-4,  win.height-2, win.width-2, win.height-4, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-6,  win.height-2, win.width-2, win.height-6, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-7,  win.height-2, win.width-2, win.height-7, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-9,  win.height-2, win.width-2, win.height-9, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-10, win.height-2, win.width-2, win.height-10, ColourNameToRGB(window.backgroundColor), 0, 1)
+		WindowLine(win.id, win.width-12, win.height-2, win.width-2, win.height-12, ColourNameToRGB(window.borderColor), 0, 2)
+		WindowLine(win.id, win.width-13, win.height-2, win.width-2, win.height-13, ColourNameToRGB(window.backgroundColor), 0, 1)
+		
+		CreateHotSpots()
+		
+		-- draw the notes
+		local line = 0
+		for i, note in ipairs(notes) do
+			local numberOfLines = math.ceil((string.len(note.text) + lblLen)/settings.textWidth)
+			
+			for i = 1, numberOfLines do
+				line = line + 1
+				local formattedNotes
+				
+				-- special case for i = 0 because of *** MAPPER NOTE *** -> 
+				if (i == 1) then
+					formattedNotes = string.sub(note.text, 1, settings.textWidth - lblLen) .. string.rep(" ", lblLen)
+				else
+					formattedNotes = string.sub(note.text, (line - 1) * settings.textWidth + 1 - lblLen, line * settings.textWidth - lblLen)
+				end
+				
+				WindowText(win.id, win.font, formattedNotes, 5, (line - 1) * (win.fontSize + 2) + 2, 0, 0, ColourNameToRGB(window.fontColor), true)		
+			end		
+		end		
+
+		-- draw the cexits
+		for i, cexit in ipairs(cexits) do	
+			line = line + 1
+			local formattedCexits = i .. ". " .. cexit.exitDir			
+			WindowText(win.id, win.font, formattedCexits, 5, (line - 1) * (win.fontSize + 2) + 2, 0, 0, ColourNameToRGB(window.cexitFontColor), true)					
+		end	
+	end	
+	
+	function InitializeWindow()
+		WindowCreate(window.id, window.left, window.top, window.width, window.height, miniwin.pos_center_all, miniwin.create_keep_hotspots, ColourNameToRGB(window.backgroundColor))
+		WindowFont(window.id, window.font, window.fontFamily, window.fontSize, false, false, false, false, 1, 0)
+		WindowPosition(window.id, window.left, window.top, miniwin.pos_stretch_to_view, miniwin.create_absolute_location)	
+
+		CreateHotSpots()
+		
+		if (window.show) then
+			WindowShow(window.id, window.show)				
+			if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				CallPlugin(z_order_plugin, "boostMe", window.id)
+			end
+			Draw(window)
+		end	
+	end
+	
+	function DeleteWindow()
+		WindowDelete(window.id)
+	end
+	
+	function ShowWindow()
+		window.show = true
+		WindowShow(window.id, true)
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "boostMe", window.id)
+		end
+		Draw(window)
+		SaveWindow()	
+	end
+	
+	function HideWindow()
+		window.show = false
+		WindowShow(window.id, false)
+		Draw(window)
+		SaveWindow()
+	end	
+	
+	function SaveWindow()
+		SetVariable("window", serialize.save_simple(window))
+	end	
+	
+	function SetFontSize(name, line, wildcards)		
+		window.fontSize = tonumber(wildcards[1])
+		SaveWindow()
+		Draw(window)
+		ColourNote("orange", "", "NoteWin: Font size set to ", "cyan", "", tostring(window.fontSize))
+	end
+	
+	function SetFontColor(name, line, wildcards)		
+		window.fontColor = wildcards[1]
+		SaveWindow()
+		Draw(window)
+		ColourNote("orange", "", "NoteWin: Font color set to ", window.fontColor, "", tostring(window.fontColor))
+	end
+	
+	function SetCexitFontColor(name, line, wildcards)		
+		window.cexitFontColor = wildcards[1]
+		SaveWindow()
+		Draw(window)
+		ColourNote("orange", "", "NoteWin: Cexit font color set to ", window.cexitFontColor, "", tostring(window.cexitFontColor))
+	end
+	
+	function SetBackColor(name, line, wildcards)		
+		window.backgroundColor = wildcards[1]
+		SaveWindow()
+		Draw(window)
+		ColourNote("orange", "", "NoteWin: Background color set to ", window.backgroundColor, "", tostring(window.backgroundColor))
+	end
+	
+	function SetBorderColor(name, line, wildcards)		
+		window.borderColor = wildcards[1]
+		SaveWindow()
+		Draw(window)
+		ColourNote("orange", "", "NoteWin: Border color set to ", window.borderColor, "", tostring(window.borderColor))
+	end
+	
+	function SetWindowDefaults()
+		window = {
+			id = "window_" .. GetPluginID(),
+			top = 10,
+			left = 10,
+			width = 200,
+			height = 50,
+			show = true,
+			font = "defaultFont",
+			fontFamily = "Consolas",
+			fontSize = 9,
+			fontColor = "white",
+			cexitFontColor = "orange",
+			borderColor = "lightgray",
+			backgroundColor = "black"
+		}
+	end
+	
+	function ResetWindow()
+		SetWindowDefaults()		
+		SaveWindow()	
+		InitializeWindow()				
+		Draw(window)
+	end
+	
+	function CreateHotSpots()
+		WindowDeleteAllHotspots(window.id)
+	
+		WindowAddHotspot(window.id, "DragArea", 0, 0, window.width-13, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragArea", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaBottom", 0, window.height-13, window.width-13, window.height, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaBottom", "dragmove", "dragrelease", 0)	
+
+		WindowAddHotspot(window.id, "DragAreaRight", window.width-13, 0, window.width, window.height-13, 
+			"", "", "", "", "mouseup", "Drag to move", miniwin.cursor_both_arrow, 0)
+		WindowDragHandler(window.id, "DragAreaRight", "dragmove", "dragrelease", 0)			
+		
+		WindowAddHotspot(window.id, "Resize", 
+			window.width-13, window.height-13, window.width-2, window.height-2,
+			"", "", "", "", "mouseup", "Drag to resize", miniwin.cursor_nw_se_arrow, 0)
+		WindowDragHandler(window.id, "Resize", "resizemove", "resizerelease", 0) 
+	end
+	
+	-- Handlers
+	function dragmove(flags, hotspot_id)							
+		if (not dragStart) then
+			dragStart = {
+				x = WindowInfo(window.id, 14),
+				y = WindowInfo(window.id, 15),
+			}
+		end		
+		
+		WindowPosition(window.id, 
+						WindowInfo (window.id, 17) - dragStart.x, 
+						WindowInfo (window.id, 18) - dragStart.y, 
+						miniwin.pos_stretch_to_view, 
+						miniwin.create_absolute_location)
+	end
+
+	function dragrelease(flags, hotspot_id)		
+		window.left = WindowInfo(window.id, 10)
+		window.top = WindowInfo(window.id, 11)
+		
+		dragStart = nil
+		
+		SaveWindow()
+	end
+	
+	function resizemove(flags, hotspot_id) 
+		window.width = WindowInfo(window.id, 17) - WindowInfo(window.id, 10)
+		window.height = WindowInfo(window.id, 18) - WindowInfo(window.id, 11)
+		
+		WindowResize(window.id, window.width, window.height, ColourNameToRGB("gray"))
+		WindowShow(window.id, true)
+	end -- dragmove
+
+	function resizerelease(flags, hotspot_id)
+		SaveWindow()
+				
+		CreateHotSpots()
+		
+		Draw(window)
+	end -- dragrelease
+	
+	function mouseup(flags, hotspot_id)		
+		if (bit.band(flags, miniwin.hotspot_got_rh_mouse) ~= 0) then
+			local result = WindowMenu(window.id, 
+				WindowInfo(window.id, 14),
+				WindowInfo(window.id, 15),
+				"Bring to front|Send to back")		
+			
+			if (result ~= "" and IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				if (result == "Send to back") then 
+					CallPlugin(z_order_plugin, "dropMe", window.id)
+				else
+					CallPlugin(z_order_plugin, "boostMe", window.id)
+				end
+			end
+		end
+	end
+]]>
+</script>
+
+</muclient>

@@ -1,0 +1,101 @@
+<muclient>
+<plugin
+   name="Nok3_IF_Map_Refresh"
+   author="Nokfah"
+   id="edb4417d2bad7c2024501a48"
+   language="Lua"
+   purpose="Refreshes the map based on an interval"   
+   save_state="y"
+   version="1.0"
+   >
+      <description trim="n">
+      <![CDATA[
+======  Map Refresher  ======
+mref           -- toggle the automatic refresh
+mref <on|off>  -- turn the automatic refresh on or off
+mref <#>       -- set how often to refresh the map (decimals allowed)
+
+]]>
+      </description>
+</plugin>
+
+<aliases>
+   <alias
+      regexp="y" match="^mref(?: (on|off))?$"
+      enabled="y" script="Toggle"
+   ></alias>
+
+   <alias
+      regexp="y" match="^mref ([0-9\.]+)$"
+      enabled="y" script="SetInterval"
+   ></alias>
+</aliases>
+
+<triggers>
+   <trigger
+      regexp="y" match="^<MAPEND>$"
+      enabled="y" script="MapEnd"
+   ></trigger>
+
+   <trigger script="RatmazeStart" enabled="y"      
+      multi_line="y" lines_to_match="13"
+      regexp="y" match="\A {1,2}---------------------------\n( ?\|.{27}\|\n){11} {1,2}---------------------------\Z"                 
+   ></trigger>
+</triggers>
+
+<script>
+<![CDATA[
+   require("serialize")
+
+	local interval = tonumber(GetVariable("interval") or "1")
+   local autoRefresh = false
+
+   function OnPluginInstall()
+      ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+   end  
+
+   function Toggle(name, line, wildcards)
+      if wildcards[1] ~= nil and wildcards[1] ~= "" then
+         if wildcards[1] == "on" then autoRefresh = true 
+         elseif wildcards[1] == "off" then autoRefresh = false end
+      else
+         autoRefresh = not autoRefresh
+      end
+
+      if autoRefresh then
+         RefreshMap()
+
+         ColourNote("orange", "", "Map Refresh: ", "lime" , "", "ON")
+      else
+         DeleteTimer("refresh_map")
+
+         ColourNote("orange", "", "Map Refresh: ", "red" , "", "OFF")
+      end
+      
+   end   
+
+   function SetInterval(name, line, wildcards)
+      interval = tonumber(wildcards[1])      
+
+      SetVariable("interval", interval)
+      ColourNote("orange", "", "Map Refresh Interval: ", "cyan" , "", wildcards[1])
+   end
+
+   function MapEnd()
+      if autoRefresh then
+         DeleteTimer("refresh_map")
+         AddTimer("refresh_map", 0, 0, interval, "", timer_flag.Enabled + timer_flag.OneShot, "RefreshMap")
+      end
+   end
+
+   function RefreshMap()
+      SendNoEcho("map")
+   end
+
+	function RatmazeStart(name, line, wildcards, styles)      
+      RefreshMap()
+   end
+]]>
+</script>
+
+</muclient>

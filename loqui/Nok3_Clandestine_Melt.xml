@@ -1,0 +1,119 @@
+<muclient>
+	<plugin
+		name="Nok3_Clandestine_Melt"
+		author="Nokfah"
+		id="a5f636f02ec26b1126acdaad"
+		language="Lua"
+		save_state="y"
+		purpose="Shows a warning when clandestine is going to melt"
+		version="1.0"		
+	>
+	<description trim="n">
+		<![CDATA[
+
+]]>
+		</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>		
+
+	
+	<triggers>
+		<trigger
+			regexp="y" match="^You hide your true intentions and become another face in the crowd\.$"
+			enabled="y" script="SuccessfulCast" keep_evaluating="y"
+		>
+		</trigger>
+
+		<trigger
+			regexp="y" match="^  Clandestine              : sets align-lock effect \((?<minutes>[0-9]+):(?<seconds>[0-9]+)\)$"
+			enabled="y" script="Duration" keep_evaluating="y"
+		>
+		</trigger>
+		
+	</triggers>
+	
+	<script>
+	<![CDATA[		
+		require "wait"
+
+		local alignment = nil		
+
+		function OnPluginBroadcast (msg, id, name, text)
+			-- Look for GMCP handler.
+			if (id == '3e7dedbe37e44942dd46d264') then
+				if (text == "char.status") then
+					res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+					luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+					assert (loadstring (luastmt or "")) ()																						
+
+					if (gmcpdata ~= nil) then						
+						if alignment == nil then alignment = tonumber(gmcpdata.align)
+						else														
+							local newAlign = tonumber(gmcpdata.align)
+
+							local alignmentColor = "lightgray"
+							if newAlign > 874 then alignmentColor = "yellow" 
+							elseif newAlign < -874 then alignmentColor = "red" end
+
+							if alignment ~= newAlign then		
+								local oldAlign = alignment						
+								wait.make(
+									function() 
+										wait.time(.1)
+
+										ColourTell("orange", "", "::::::::::::: ",
+												"cyan", "", "ALIGNMENT CHANGE: ")
+
+										if oldAlign < newAlign then									
+											ColourTell("yellow", "", "+" .. tostring(newAlign - oldAlign))										
+										elseif oldAlign > newAlign then
+											ColourTell("red", "", tostring(newAlign - oldAlign))										
+										end
+
+										ColourNote("orange", "","|",
+												alignmentColor, "", tostring(newAlign),
+												"orange", "", " :::::::::::::")									
+									end
+								)								                         
+							end
+
+							alignment = newAlign
+						end
+						
+					end				
+				end
+			end		   
+		end -- onpluginbroadcast
+
+		function SuccessfulCast()
+			SendNoEcho("aff clandestine")								
+		end			
+
+		function Duration(name, line, wildcards)		
+			local minutes = tonumber(wildcards.minutes)
+			local seconds = tonumber(wildcards.seconds)
+
+			if seconds < 30 then
+				minutes = minutes - 1
+				seconds = seconds + 60
+			end
+
+			-- warn with 30 seconds left
+			seconds = seconds - 30	
+
+			AddTimer("warning", 0, minutes, seconds, "", timer_flag.Enabled + timer_flag.OneShot, "ShowWarning")			
+		end
+		
+		function ShowWarning()								
+			ColourNote("orange", "", "CLANDESTINE ", "gray", "", "will melt in ", "red", "", "30 SECONDS!")
+			ColourNote("orange", "", "CLANDESTINE ", "gray", "", "will melt in ", "red", "", "30 SECONDS!")
+			ColourNote("orange", "", "CLANDESTINE ", "gray", "", "will melt in ", "red", "", "30 SECONDS!")
+			ColourNote("orange", "", "CLANDESTINE ", "gray", "", "will melt in ", "red", "", "30 SECONDS!")
+			ColourNote("orange", "", "CLANDESTINE ", "gray", "", "will melt in ", "red", "", "30 SECONDS!")
+		end		
+	]]>
+	</script>
+</muclient>

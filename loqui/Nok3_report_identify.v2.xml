@@ -1,0 +1,676 @@
+<muclient>
+	<plugin
+		name="Nok3_Report_Identify"
+		author="Nokfah"
+		id="a5b534a09df80b4093cabbfd"
+		language="Lua"
+		purpose="Report item stats to a channel"	
+		version="1.2"
+	>
+	<description trim="n">
+		<![CDATA[
+==================== Report Identify Help ====================	
+rid (id|spell|ore) - sets the method used to identify
+
+rid <item> worn(optional) <channel>(optional)  - reports the identify results of an item
+
+rid bag <bag id> <channel>(optional) - reports the identify results all the contents of a bag using its id
+]]>
+		</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>	
+		
+	<aliases>
+		<alias		
+			regexp="y" match="^rid (id|spell|lore)$"
+			enabled="y" sequence="50"
+			send_to="12" script="SetIDType"			
+		>
+		</alias>
+
+		<alias		
+			regexp="y" match="^rid help$"
+			enabled="y" sequence="50"
+			send_to="12" script="Help"			
+		>
+		</alias>
+
+		<alias
+			regexp="y" match="^rid (?<num>[0-9]+\.)?'(?<item>[\w\d\s]+)'(?<channel> [\w\s]+)?$"
+			enabled="y" sequence="100"
+			send_to="12" script="Identify"			
+		>
+		</alias>
+		
+		<alias
+			regexp="y" match="^rid (?<num>[0-9]+\.)?(?<item>[\w\d]+ worn)(?<channel> [\w\s]+)?$"
+			enabled="y" sequence="200"
+			send_to="12" script="Identify"
+		>
+		</alias>
+		
+		<alias
+			regexp="y" match="^rid (?<num>[0-9]+\.)?(?<item>[\w\d]+)(?<channel> [\w\s]+)?$"
+			enabled="y" sequence="300"
+			send_to="12" script="Identify"
+		>
+		</alias>
+		
+		<alias
+			regexp="y" match="^rid bag (?<bag>[0-9]+)(?<channel> [\w\s]+)?$"
+			enabled="y" sequence="50"
+			send_to="12" script="BagIdentify"
+		>
+		</alias>
+	</aliases>
+		
+	<triggers>		
+		<trigger name="invdata_start"			
+			match="^\{invdata [0-9]+\}$"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InvdataStart"
+		>
+		</trigger>
+
+		<trigger name="invdata_capture"			
+			match="^([0-9]+),.*"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InvdataCapture"
+		>
+		</trigger>
+		
+		<trigger name="invdata_end"			
+			match="^\{/invdata\}$"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InvdataEnd"
+		>
+		</trigger>
+	
+		<trigger name="identify_start"								
+		    match="+-----------------------------------------------------------------+"				   
+			enabled="n"
+		    send_to="12" script="IdentifyStart"
+		>
+		</trigger>			
+
+		<trigger group="info_capture"
+			match="(?<attr>Id)         : (?<val>\d*)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		>
+		</trigger>			
+		
+		<trigger group="info_capture"
+			match="(?<attr>Name)       : (?<val>.*)\|"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="NameCapture"
+		>
+		</trigger>		
+		
+		<trigger group="info_capture"
+			match="(?<attr>Level)  :\s+(?<val>[0-9]+)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(?<attr>Wearable)   :\s+(?<val>\w+)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(?<attr>Score)      :\s+(?<sign>[+-])?(?<val>[0-9]+)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(?<attr>Average Dam) :( +)(?<val>[0-9]+)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		 
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(solidified)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="FlagCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(resonated)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="FlagCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(illuminated)"
+			regexp="y" enabled="n"
+			keep_evaluating="y"
+			send_to="12" script="FlagCapture"
+		>
+		</trigger>
+		
+		<trigger group="info_capture"
+			match="(?<attr>Strength)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"			
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Intelligence)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>		
+		<trigger group="info_capture"
+			match="(?<attr>Wisdom)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Dexterity)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Constitution)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Luck)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Hit roll)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Damage roll)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Hit points)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Mana)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Moves)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+
+		<!-- resists -->
+		<trigger group="info_capture"
+			match="(?<attr>All magic)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>All physical)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Bash)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Pierce)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Slash)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Acid)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Air)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Cold)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Disease)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Earth)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Electric)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Energy)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Fire)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Holy)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Light)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Magic)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Mental)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Negative)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Poison)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Shadow)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Sonic)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+		<trigger group="info_capture"
+			match="(?<attr>Water)\s+: (?<sign>[+-])(?<val>[0-9]+)"
+			regexp="y" enabled="n" keep_evaluating="y"
+			send_to="12" script="InfoCapture"
+		></trigger>
+	</triggers>
+				
+	<script>
+	<![CDATA[	
+		require "serialize"
+		dofile(GetInfo (60) .. "aardwolf_colors.lua")
+		
+		local channel = ""
+		local item = {}		
+		local itemsToReport = {}
+		
+		local itemIds = {}
+		local nextId = ""
+		local bagId = ""
+		local idType = (GetVariable("idType") or "identify")
+		
+		local statLabels = {
+			["Strength"] = "str",
+			["Intelligence"] = "int",
+			["Wisdom"] = "wis",
+			["Dexterity"] = "dex",
+			["Constitution"] = "con",
+			["Luck"] = "luk",
+			["Hit roll"] = "hr",
+			["Damage roll"] = "dr",
+			["Hit points"] = "hp",
+			["Mana"] = "mn",
+			["Moves"] = "mv"			
+		}
+
+		local resists = {
+			"All magic", 
+			"All physical",
+			"Bash",
+			"Pierce",
+			"Slash",
+			"Acid",
+			"Air",
+			"Cold",
+			"Disease",
+			"Earth",
+			"Electric",
+			"Energy",
+			"Fire",
+			"Holy",
+			"Light",
+			"Magic",
+			"Mental",
+			"Negative",
+			"Poison",
+			"Shadow",
+			"Sonic",
+			"Water"
+		}
+	
+		local colors = {
+			pos = { channel = "@G", nochannel = "lime" },
+			neg = { channel = "@R", nochannel = "red" },
+			val = { channel = "@W", nochannel = "white" },
+			lbl = { channel = "@D", nochannel = "dimgray" },
+			pts = { channel = "@Y", nochannel = "yellow" },
+			flg = { channel = "@C", nochannel = "cyan" }
+		}
+	
+		function OnPluginInstall()
+			Help()
+		end
+
+		function Help()
+			ColourNote("orange", "", GetPluginInfo (GetPluginID (), 3))	
+		end
+
+		function SetIDType(name, line, wildcards)
+			if wildcards[1] == "id" then idType = "identify"
+			elseif wildcards[1] == "spell" then idType = "c identify"
+			elseif wildcards[1] == "lore" then idType = "lore" end
+
+			SetVariable("idType", idType)
+			ColourNote("orange", "", "ID method set to: ", "cyan", "", idType)
+		end
+
+		function Identify(name, line, wildcards)			
+			EnableTrigger("identify_start", true)
+		
+			channel = trim(wildcards.channel)					
+			
+			item = {}									
+			SendNoEcho(idType .. " " .. (wildcards.num or "") .. wildcards.item)
+		end
+	
+		function IdentifyStart()			
+			EnableTriggerGroup("info_capture", true)
+			EnableTrigger("identify_start", false)
+			
+			AddTimer("identify_end", 0, 0, .5, "", timer_flag.Enabled + timer_flag.OneShot, "IdentifyEnd")
+		end
+		
+		function NameCapture(name, line, wildcards, styles)			
+			local coloredLine = StylesToColoursOneLine(styles)
+			local extractedName = trim(
+				string.sub(coloredLine,
+					string.find(coloredLine, ":")+1,
+					string.find(coloredLine, " |")))											
+			
+			item["chanName"] = { sign = wildcards.sign, val = "@w"..extractedName }	
+
+
+			local cleanedStyles = {}
+			for i, style in ipairs(styles) do
+				if i > 2 then
+					local cleanedName = style.text
+					
+					if i == 3 or i == #styles then						
+						cleanedName = cleanName(style.text)											
+					end
+					
+					table.insert(cleanedStyles, { textcolour = style.textcolour, text = cleanedName })
+				end
+			end
+			
+			item["nochanName"] = { val = cleanedStyles }						
+		end
+		
+		function FlagCapture(name, line, wildcards)
+			if item.flags == nil then item.flags = {} end
+			table.insert(item.flags, wildcards[1])
+		end
+
+		function InfoCapture(name, line, wildcards)			
+			-- Stall the timer each move			
+			ResetTimer("identify_end")	
+			
+			item[wildcards.attr] = { sign = wildcards.sign, val = trim(wildcards.val) }
+		end
+	
+		function IdentifyEnd()			
+			EnableTriggerGroup("info_capture", false)			
+			
+			local str = {}
+			
+			table.insert(str, { color = colors.lbl, val = "[" })
+			table.insert(str, { color = colors.val, val = item["Id"].val })
+			table.insert(str, { color = colors.lbl, val = "] " })
+
+			table.insert(str, { color = colors.lbl, val = "[lv" })
+			table.insert(str, { color = colors.val, val = item["Level"].val })
+			table.insert(str, { color = colors.lbl, val = "] [" })	
+			
+			if item["Wearable"] ~= nil then
+				table.insert(str, { color = colors.val, val = item["Wearable"].val })
+				table.insert(str, { color = colors.lbl, val = "] [" })	
+			end
+			
+			if item["Average Dam"] ~= nil then
+				table.insert(str, { color = colors.val, val = item["Average Dam"].val })
+				table.insert(str, { color = colors.lbl, val = "dam] [" })	
+			end
+			
+			table.insert(str, { color = colors.pts, val = item["Score"].val })
+			table.insert(str, { color = colors.lbl, val = "pts] [" })
+						
+			FormatStat(str, "Strength")
+			FormatStat(str, "Intelligence")
+			FormatStat(str, "Wisdom")
+			FormatStat(str, "Dexterity")
+			FormatStat(str, "Constitution")
+			FormatStat(str, "Luck")			
+			table.remove(str)
+						
+			table.insert(str, { color = colors.lbl, val = "] [" })
+						
+			FormatStat(str, "Hit roll")
+			FormatStat(str, "Damage roll")	
+			table.remove(str)
+						
+			table.insert(str, { color = colors.lbl, val = "] [" })
+						
+			FormatStat(str, "Hit points")
+			FormatStat(str, "Mana")
+			FormatStat(str, "Moves")
+			table.remove(str)
+
+			table.insert(str, { color = colors.lbl, val = "]" })
+
+
+			local resistCount = 0
+			table.insert(str, { color = colors.lbl, val = " [" })
+			for i, resist in ipairs(resists) do
+				if item[resist] ~= nil then
+					resistCount = resistCount + 1
+					FormatStat(str, resist)
+				end
+			end
+			table.remove(str)
+
+			if resistCount > 0 then
+				table.insert(str, { color = colors.lbl, val = "]" })
+			end			
+			
+			if item.flags ~= nil then
+				table.insert(str, { color = colors.lbl, val = " [" })
+				
+				for i, flag in ipairs(item.flags) do
+					table.insert(str, { color = colors.flg, val = string.upper(string.sub(flag, 1, 1)) })
+				end
+				
+				table.insert(str, { color = colors.lbl, val = "]" })
+			end
+							
+			table.insert(itemsToReport, { reportItem = item, reportStr = str })			
+			
+			BroadcastPlugin(1, serialize.save_simple(item))
+			
+			-- A bit hacky, but continue with identifies as if we were doing a whole bag
+			BagIdentifyEnd()
+		end		
+		
+		function ReportChannel(reportItem, reportStyles)
+			str = channel .. " " .. reportItem["chanName"].val .. " "				
+			
+			for i, style in ipairs(reportStyles) do
+				str = str .. style.color.channel .. style.val
+			end
+			
+			SendNoEcho(str)
+		end
+		
+		function ReportEcho(reportItem, reportStyles)
+			for i, style in ipairs(reportItem["nochanName"].val) do
+				if style.text ~= "" then 
+					ColourTell(RGBColourToName(style.textcolour), "", style.text)											
+				end
+			end	
+			
+			ColourTell("", "", " ")
+		
+			for i, style in ipairs(reportStyles) do
+				ColourTell(style.color.nochannel, "", style.val)
+			end
+			
+			ColourNote("", "", "")
+		end
+		
+		function FormatStat(str, stat)			
+			if (item[stat] ~= nil) then
+				local valueColor = colors.pos								
+				local sign = ""
+				
+				if (item[stat].sign == "-") then 
+					sign = "-" 
+					valueColor = colors.neg
+				end
+				
+				table.insert(str, { color = valueColor, val = sign .. item[stat].val })
+				table.insert(str, { color = colors.lbl, val = (statLabels[stat] or string.lower(stat)) })
+				table.insert(str, { color = colors.lbl, val = " " })
+			end								
+		end
+		
+		function BagIdentify(name, line, wildcards)
+			EnableTrigger("invdata_start", true)
+			itemIds = {}			
+			itemsToReport = {}
+			
+			bagId = wildcards.bag
+			channel = trim(wildcards.channel)					
+									
+			SendNoEcho("invdata " .. bagId)
+		end
+		
+		function InvdataStart()
+			EnableTrigger("invdata_start", false)
+			EnableTrigger("invdata_capture", true)
+			EnableTrigger("invdata_end", true)
+		end
+		
+		function InvdataEnd()
+			EnableTrigger("invdata_capture", false)
+			EnableTrigger("invdata_end", false)
+
+			BagIdentifyStart()
+		end
+		
+		function InvdataCapture(name, line, wildcards)
+			table.insert(itemIds, wildcards[1])
+		end
+		
+		function BagIdentifyStart()
+			if #itemIds > 0 then												
+				nextId = table.remove(itemIds)
+				
+				Send("get " .. nextId .. " " .. bagId)
+				
+				local executeString = "rid " .. nextId
+				if channel ~= "" and channel ~= nil then
+					executeString = executeString .. " " .. channel
+				end
+				
+				Execute(executeString)
+			end
+		end			
+		
+		function BagIdentifyEnd()
+			if nextId ~= "" then
+				SendNoEcho("put " .. nextId .. " " .. bagId)
+			end
+			
+			nextId = ""		
+
+			if #itemIds > 0 then
+				BagIdentifyStart()
+			else
+				for i, item in ipairs(itemsToReport) do
+					if channel ~= nil and channel ~= "" then
+						ReportChannel(item.reportItem, item.reportStr)						
+					else
+						ReportEcho(item.reportItem, item.reportStr)
+					end
+				end
+				
+				itemsToReport = {}
+			end
+		end
+		
+		function cleanName(name)
+			name = string.gsub(name, ": ", "")
+			name = string.gsub(name, " |", "")
+			return trim(name)
+		end
+	
+		function trim(s)
+			return s:find'^%s*$' and '' or s:match'^%s*(.*%S)'
+		end
+	]]>
+	</script>
+</muclient>

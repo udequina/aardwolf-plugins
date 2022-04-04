@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+<plugin
+   name="Nok3_WW_Extender_GUI"
+   author="Multiple"
+   id="3f498d929793c12cb70f5999"
+   language="Lua"
+   purpose="UI Gui for Extender"
+   date_written="2011-08-29 15:35:02"
+   requires="4.76"
+   version="1"
+   save_state="y"
+   >
+</plugin>
+
+<aliases>
+	<alias
+		name="ali_reset_gui"
+		match="^xset reset gui$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="reset_gui"
+	>
+	</alias>
+	
+	<alias
+		name="ali_toggle_buttons"
+		match="^xset buttons$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="toggle_buttons"
+	>
+	</alias>
+</aliases>
+
+<script>
+<![CDATA[
+
+require "serialize"
+require "tprint"
+require "movewindow"
+require "mw"
+
+local cpList = {}
+local gqList = {}
+
+local win_height = GetVariable("WinHeight") or 300
+local min_height = 100
+
+local win_width = GetVariable("WinWidth") or 600
+local win_state = GetVariable("WinState") or "max"
+local win_init = false
+
+local hotspots = {}
+local itemHotspots = {}
+local win = "extender_gui_" .. GetPluginID ()  -- get a unique name, ensure not empty if outside plugin
+
+local z_order_plugin = "462b665ecb569efbf261422f"
+
+local pos_x = GetVariable("WinPosX") or 50
+local pos_y = GetVariable("WinPosY") or 50
+
+local buttons = GetVariable("Buttons") or "1"
+
+local offset = 0
+local line_spacing = 15
+
+local current_mode = "cp"
+
+local USER_qq_report_channel = "gt" -- group tell
+
+function create_win()
+
+	if (win_init == false) then
+
+		win_init = true
+		WindowCreate (win, 0, 0, win_width, win_height, miniwin.pos_center_all, 0, ColourNameToRGB("black"))  -- create window
+		
+		-- move the window to the new location
+		WindowPosition(win, pos_x, pos_y, 
+			miniwin.pos_stretch_to_view, 
+			miniwin.create_absolute_location)
+			
+		WindowShow(win,  true)  -- show it 
+
+		if (win_state == "min") then
+			mouseup(0, "hsMinimize")
+		end		
+		
+		WindowFont(win, "button", "Lucida Console", 8, true, false, false, false) -- define font
+		WindowFont(win, "font", "Lucida Console", 8, false, false, false, false) -- define font
+
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "registerMiniwindow", win)
+		end		
+		
+		draw_window()	
+	end
+end
+
+
+function draw_window()
+	if (buttons == "0") then 		
+		offset = 5
+	else 		
+		offset = 30
+	end
+
+	-- clear the window
+	WindowRectOp (win, miniwin.rect_fill, 0, 0, 0, 0, ColourNameToRGB("Black"))
+
+	-- border
+	WindowRectOp (win, 1, 0, 0, 0, 0, ColourNameToRGB("Silver"), 15)
+	WindowRectOp (win, 1, 1, 1, -1, -1, 0x777777, 15)
+	
+   -- draw the resize widget bottom right corner.
+   local draw_resize = 1
+   if (draw_resize == 1) then
+	   WindowLine(win, win_width-3,  win_height-2, win_width-2, win_height-3, 0xffffff, 0, 2)
+	   WindowLine(win, win_width-4,  win_height-2, win_width-2, win_height-4, 0x696969, 0, 1)
+	   WindowLine(win, win_width-6,  win_height-2, win_width-2, win_height-6, 0xffffff, 0, 2)
+	   WindowLine(win, win_width-7,  win_height-2, win_width-2, win_height-7, 0x696969, 0, 1)
+	   WindowLine(win, win_width-9,  win_height-2, win_width-2, win_height-9, 0xffffff, 0, 2)
+	   WindowLine(win, win_width-10, win_height-2, win_width-2, win_height-10, 0x696969, 0, 1)
+	   WindowLine(win, win_width-12, win_height-2, win_width-2, win_height-12, 0xffffff, 0, 2)
+	   WindowLine(win, win_width-13, win_height-2, win_width-2, win_height-13, 0x696969, 0, 1)
+	end
+	
+	WindowDeleteHotspot(win, "hsResize")
+	hotspots["hsResize"] = WindowAddHotspot(win, 
+				"hsResize",  -- HS id
+				win_width-13, win_height-13, win_width-2, win_height-2, -- rectangle
+				"mouseover", 
+				"cancelmouseover", 
+				"mousedown",
+				"cancelmousedown", 
+				"mouseup", 
+				"Drag to resize",  -- tooltip text
+				miniwin.cursor_nw_se_arrow , 0)  -- 4-way arrows
+								
+	WindowDragHandler(win, "hsResize", "resizemove", "resizerelease", 0) 
+	   
+	-- drag bar --------------------------
+	WindowRectOp (win, miniwin.rect_draw_edge, 0, 0, 0, 15, 
+		miniwin.rect_edge_raised, 
+		miniwin.rect_edge_at_all + 
+		miniwin.rect_option_fill_middle)  -- raised, filled
+		
+			
+	WindowText (win, "button", 
+				"Search & Destroy GUI",    -- text
+				2, 2, 0, 15,
+				ColourNameToRGB ("Black"), -- colour
+				false) 
+
+	if (hotspots["hsDrag1"] == nil) then
+		hotspots["hsDrag1"] = WindowAddHotspot(win, 
+					"hsDrag1",  -- HS id
+					0, 0, -80, 15, -- rectangle
+					"mouseover", 
+					"cancelmouseover", 
+					"mousedown",
+					"cancelmousedown", 
+					"mouseup", 
+					"Drag to move",  -- tooltip text
+					miniwin.cursor_both_arrow, 0)  -- 4-way arrows
+		
+			
+					
+		WindowDragHandler(win, "hsDrag1", "dragmove", "dragrelease", 0) 
+	end
+
+	-- system buttons --------------------------
+	draw_button(win_width - 15, 0, 15, 15, "^", "hsMaximize", "Maximize Window")
+	draw_button(win_width - 30, 0, 15, 15, "_", "hsMinimize", "Minimize Window")
+	draw_button(win_width - 45, 0, 15, 15, "B", "hsBack", "send window to the Back")
+	draw_button(win_width - 60, 0, 15, 15, "f", "hsFront", "bring window to the Front")
+	draw_button(win_width - 80, 0, 15, 15, "?", "hsHelp", "show ww help")
+	
+	if (buttons == "1") then
+		-- go button --------------------------
+		draw_button(5, 20, 35, 20, "go", "hsGo", "Go to Room 1", 10)
+
+		-- quickscan button --------------------------
+		draw_button(40, 20, 15, 20, "?", "hsQS", "Quick-Scan for your hunted mob", 2)
+
+		-- next button --------------------------
+		draw_button(55, 20, 35, 20, "nx", "hsNext", "Go to Next Room", 10)
+
+		-- kill button --------------------------
+		draw_button(95, 20, 30, 20, "ak", "hsKill", "Auto-Kill last searched mob")
+
+		-- refresh button --------------------------
+		draw_button(180, 20, 35, 20, "<*>", "hsRefresh", "'Smart' Refresh Listing")
+		
+		-- hunt-trick abort button --------------------------
+		draw_button(240, 20, 30, 20, "hta", "hsHTA", "Abort hunt-trick", 2)
+
+		-- clear contents button --------------------------
+		draw_button(310, 20, 35, 20, "Clr", "hsClear", "Clear Window")
+	end
+	
+	if (win_state == "min") then
+		return
+	end
+	
+end
+
+function draw_button(left, top, width, height, text, hsName, hint, textOffset)
+
+	if (textOffset == nil) then
+		textOffset = 5
+	end
+
+	WindowRectOp (win, miniwin.rect_draw_edge, 
+		left, top, (left + width) - win_width, (top + height), 
+		miniwin.rect_edge_raised, 
+		miniwin.rect_edge_at_all + 
+		miniwin.rect_option_fill_middle)  -- raised, filled
+
+	WindowText(win, "button", 
+				text,   -- button text
+				left + textOffset, top + 3, (left + width) - win_width, (top + height) ,        -- rectangle
+				ColourNameToRGB ("darkgreen"), -- colour
+				false)              -- not Unicode
+	
+	if (hotspots[hsName] == nil) then
+		hotspots[hsName] = WindowAddHotspot(win, 
+					hsName,  -- HS id
+					left, top, (left + width) - win_width, (top + height),  -- rectangle
+					"mouseover", 
+					"cancelmouseover", 
+					"mousedown",
+					"cancelmousedown", 
+					"mouseup", 
+					"Click to " .. (hint or text),  -- tooltip text
+					miniwin.cursor_hand, 0)  -- 4-way arrows
+	end
+end
+
+function clear_hotspots()
+	--clear cp items
+	for key, value in ipairs(itemHotspots) do
+		--Note(key, value)
+		WindowDeleteHotspot (win, value);
+	end
+	itemHotspots = {}
+
+end
+
+function write_items(mode)	
+	if (mode ~= nil) then
+		current_mode = mode
+	end
+	
+	--clear cp items
+	clear_hotspots()
+	
+	if (win_state == "min") then
+		return
+	end
+
+	if (current_mode == "cp") then
+		write_list_items(cpList)
+	elseif (current_mode == "gq") then
+		write_list_items(gqList)
+	end
+end
+
+function write_list_items(list)
+	
+	-- draw items
+	local index = 0
+	
+	for key, value in ipairs(list) do
+		index = index + 1
+
+		local qty = ""
+		if (value.qty > 1) then
+			qty = string.format("%s * ", value.qty)
+		end
+		
+		local mobText = value.mob
+		local deadFlag = false
+		if (value.isDead ~= nil and value.isDead ~= "") then
+			mobText = mobText .. " [Dead]"
+			deadFlag = true
+		end
+		
+		local area
+		local room = ""
+		local color
+		if (value.type == "area") then
+			area = string.format("(%s)", value.areaId)			
+			if (deadFlag == false) then
+				if (isImportantMob(mobText)) then
+					color = "Yellow"
+				else
+					color = "white"
+				end
+			else
+				color = "DimGray"
+			end
+		elseif (value.type == "room") then
+			area = string.format("(%s)", value.areaId)
+			room = string.format(" - [%s-%s] '%s'", value.min, value.max, value.roomName)
+			if (deadFlag == false) then
+				if (isImportantMob(mobText)) then
+					color = "Yellow"
+				else
+					color = "LightBlue"
+				end
+			else
+				color = "DimGray"
+			end
+		else -- unknown
+			area = string.format("'%s' is Unknown", value.roomName, value.areaId)
+			if (deadFlag == false) then
+				color = "Crimson"
+			else
+				color = "DarkRed"
+			end
+		end			
+		
+		local displayText = string.format("%s) %s - %s%s%s", index, area, qty, mobText, room)
+		--Note(displayText)
+
+		width   = WindowTextWidth (win, "font", displayText)  -- width of text
+		height  = WindowFontInfo (win, "font", 1)   -- height of the font
+		ascent  = WindowFontInfo (win, "font", 2)   -- ascent (amount above the baseline)
+		descent = WindowFontInfo (win, "font", 3)   -- descent (amount below the baseline)
+		leading = WindowFontInfo (win, "font", 4)   -- leading (space above the highest letter)
+		--Note(string.format("w:%s h:%s asc:%s desc:%s lead:%s", width, height, ascent, descent, leading)) 		
+		
+		WindowText (win, "font", 
+					displayText,   -- text
+					5, (tonumber(key) * line_spacing) + offset, 0, 0,        -- rectangle
+					ColourNameToRGB (color),
+					false)              -- not Unicode
+				
+		local hsLength = (5 + width) - win_width
+		if (hsLength > 0) then hsLength = 0 end
+		local hsHeight = ((tonumber(key) * line_spacing) + 11 + offset) - win_height
+		if (hsHeight > 0) then hsHeight = 0 end
+
+		--Note(string.format("%s %s %s %s", 5, (tonumber(key) * line_spacing) + offset, hsLength, hsHeight))				
+		
+		itemHotspots[#itemHotspots+1] = key
+		WindowAddHotspot(win, 
+						key,  -- HS id
+						5, (tonumber(key) * line_spacing) + offset, hsLength, hsHeight, -- rectangle
+						"mouseover", 
+						"cancelmouseover", 
+						"mousedown",
+						"cancelmousedown", 
+						"mouseup_item", 
+						"Click to perform the Item",  -- tooltip text
+						miniwin.cursor_hand, 0)  -- hand cursor
+	end
+
+end
+
+
+function OnPluginBroadcast (msg, id, name, text)
+	-- Mapper Extender Plugin
+	if (id == "b6eae87ccedd84f510b74715") then -- Mapper Extender
+		if (msg == 669) then					
+			-- load serialize.save_simple data
+			luastmt = "obj = " .. text
+			assert (loadstring (luastmt or "")) ()					
+		
+			cpList = obj
+			draw_window()
+			write_items("cp")
+			Redraw()
+		elseif (msg == 670) then
+		-- load serialize.save_simple data
+			luastmt = "obj = " .. text
+			assert (loadstring (luastmt or "")) ()
+		
+			gqList = obj
+			draw_window()
+			write_items("gq")
+			Redraw()
+		end		
+	elseif (id == "e50b1d08a0cfc0ee9c442001") then -- S&D
+
+	end
+end
+
+function mouseup(flags, hotspot_id)
+
+	--Note(hotspot_id)
+	if (hotspot_id == "hsGo") then
+		Execute("go")
+		Execute("qs")
+	elseif (hotspot_id == "hsNext") then
+		Execute("nx")
+		Execute("qs")
+	elseif (hotspot_id == "hsQS") then
+		Execute("qs")
+	elseif (hotspot_id == "hsKill") then
+			Execute("autokill")
+	elseif (hotspot_id == "hsHTA") then
+		Execute("ht a")
+	elseif (hotspot_id == "hsRefresh") then
+		if (current_mode == "cp") then
+			Execute("cp c")
+		elseif (current_mode == "gq") then
+			Execute("gq c")
+		end
+		mouseup(0, "hsMaximize")
+	elseif (hotspot_id == "hsClear") then
+		cpList = {}
+		gqList = {}
+		draw_window()
+		write_items()
+		Redraw()
+	elseif (hotspot_id == "hsMinimize") then
+		win_state = "min"		
+		WindowResize(win, win_width, min_height, ColourNameToRGB("black"))
+
+		draw_window()
+		write_items()
+		Redraw()
+	elseif (hotspot_id == "hsMaximize") then
+		win_state = "max"
+		win_height = win_height
+
+		WindowResize(win, win_width, win_height, ColourNameToRGB("black"))
+
+		draw_window()
+		write_items()
+		Redraw()
+	elseif (hotspot_id == "hsFront") then
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "boostMe", win)
+		end
+	elseif (hotspot_id == "hsBack") then
+		if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+			CallPlugin(z_order_plugin, "dropMe", win)
+		end
+	elseif (hotspot_id == "hsHelp") then
+		Execute("ww help")
+	end
+end
+
+function mouseup_item(flags, hotspot_id)
+	if (tonumber(hotspot_id) ~= nil) then
+		if (current_mode == "cp") then
+			Execute("xcp " .. hotspot_id)
+		elseif (current_mode == "gq") then
+			Execute("xgq " .. hotspot_id)
+		end
+	end
+end
+
+-- \\\  WindowPosition("extender_gui_3f498d929793c12cb70f5999", 50, 50, miniwin.pos_stretch_to_view, miniwin.create_absolute_location);CallPlugin("462b665ecb569efbf261422f", "boostMe", "extender_gui_3f498d929793c12cb70f5999")
+function reset_gui(name, line, wildcards) 
+	-- move the window to the new location
+	WindowPosition(win, 50, 50, 
+	miniwin.pos_stretch_to_view, 
+	miniwin.create_absolute_location)
+	
+	if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+		CallPlugin(z_order_plugin, "boostMe", win)
+	end                 
+end
+
+function toggle_buttons(name, line, wildcards)
+	if (buttons == "1") then buttons = "0" 				
+	else buttons = "1" end
+
+	SetVariable("Buttons", buttons)
+	
+	draw_window()
+	write_items()
+	Redraw()
+end
+
+function dragmove(flags, hotspot_id)
+  
+  pos_x, pos_y = WindowInfo (win, 17) - (win_width / 2),
+               WindowInfo (win, 18) - (win_height / 2)
+
+  --print ("moved to position", pos_x, pos_y)
+                                                      
+  -- move the window to the new location
+  WindowPosition(win, pos_x, pos_y, 
+                 miniwin.pos_stretch_to_view, 
+                 miniwin.create_absolute_location)
+    
+end -- dragmove
+
+function dragrelease(flags, hotspot_id)
+--  print ("mouse drag release for " .. hotspot_id)
+--  print ("released at position", WindowInfo (win, 17), WindowInfo (win, 18))
+
+end -- dragrelease
+
+function resizemove(flags, hotspot_id) 
+	win_width = WindowInfo(win, 17) - WindowInfo(win, 10)
+	win_height = WindowInfo(win, 18) - WindowInfo(win, 11)
+    
+	WindowResize(win, win_width, win_height, ColourNameToRGB("gray"))
+	Redraw()
+end -- dragmove
+
+function resizerelease(flags, hotspot_id)
+	SetVariable("WinHeight", win_height)
+	SetVariable("WinWidth", win_width)
+
+	draw_window()
+	write_items()
+	Redraw()
+end -- dragrelease
+
+function OnPluginClose ()
+	WindowShow(win, false) -- hide window, refresh screen
+end 
+
+function OnPluginSaveState()
+	SetVariable("WinPosX", pos_x)
+	SetVariable("WinPosY", pos_y)
+	SetVariable("WinWidth", win_width)
+	SetVariable("WinHeight", win_height)
+	SetVariable("WinState", win_state)
+end
+
+function isImportantMob(mob)
+	local result = false
+		
+	-- If the first word is 'the '
+	s,e = string.find(mob, "the ")
+	if (s == 1) then
+		result = true
+	else
+		-- Capital letters
+		if (string.find(mob, "%u") ~= nil) then
+			result = true
+		end
+		
+		-- make sure it doesn't start with 'a '
+		s,e = string.find(mob, "a ")
+		if (s == 1) then
+			result = false
+		end
+	end	
+	
+	return result
+end
+
+-- run it all
+create_win()
+
+]]>
+</script>
+
+
+<![CDATA[
+<!--
+BUG : Show UNKNOWNS [WW]
+
+-->
+]]>
+</muclient>

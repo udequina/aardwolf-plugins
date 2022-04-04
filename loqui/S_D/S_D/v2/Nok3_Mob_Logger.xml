@@ -1,0 +1,950 @@
+<muclient>
+	<plugin
+		name="Nok3_Mob_Logger"
+		author="Nokfah"
+		id="c5b534a09df80b4093cabbfd"
+		language="Lua"
+		purpose="Log details about mobs"
+		version="2"
+	>
+	<description trim="n">
+<![CDATA[
+
+MOB DATABASE USAGE:
+
+===== SHOW THIS HELP ===============>
+> Help
+    logger help - shows only this help
+> Pause
+    logger <pause|resume> - pause or resume logging
+> Update
+	logger update - forces an update of the database immediately instead of waiting 60 seconds
+> Lookup
+    lm         - lookup the mob you have loaded in your ‘quick where’
+    lm <mob>   - lookup mob
+    lmh <mob>  - lookup mob in your current area
+    lmx <mob>  - lookup mob using an exact search
+    lmxh <mob> - lookup mob using an exact search in your current area
+> Go
+    lg # -  go to the room number based on the output from ‘lm’
+> Keywords
+    lm # kw <keyword> - Set the keyword for the mob based on the output from ‘lm’
+    lm # kw clear     - clear the keyword set for the mob
+> Important Mobs
+    lm # impt       - Flag the mob as important
+    lm # impt clear - Unflag the mob as important
+> Spawn
+	lm # sp       - Set this location as the mobs spawn room
+	lm # sp clear - Remove this location s the mobs spawn room
+> Delete
+	lm # delete - Delete this mob and all of its stored locations from the DB	
+
+		
+]]>
+</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>	
+	
+	<aliases>
+		<alias match="^logger help$"
+			enabled="y"
+			sequence="100"
+			send_to="12"
+			regexp="y"
+			keep_evaluating="y"		
+		>
+		<send>
+			ColourNote("SteelBlue", "", GetPluginInfo (GetPluginID (), 3))
+		</send>
+		</alias> 
+		
+		<alias
+			regexp="y" match="^logger (pause|resume)$"
+			script="pause_resume"
+			enabled="y" sequence="100"
+		>
+		</alias>
+		
+		<alias
+			regexp="y" match="^logger update$"
+			script="update_immediately"
+			enabled="y" sequence="100"
+		>
+		</alias>
+
+		<alias
+			name="mob_search"
+			script="mob_search"			
+			sequence="100"
+			match="^lm (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_exact"
+			script="mob_search_exact"			
+			sequence="100"
+			match="^lmx (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_here"
+			script="mob_search_here"			
+			sequence="100"
+			match="^lmh (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_exact_here"
+			script="mob_search_exact_here"			
+			sequence="100"
+			match="^lmxh (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_set_keyword"
+			script="mob_set_keyword"			
+			sequence="50"
+			match="^lm ([0-9]+) kw (.*)"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_clear_keyword"
+			script="mob_clear_keyword"			
+			sequence="25"
+			match="^lm ([0-9]+) kw clear$"			
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 			
+			script="mob_set_important"			
+			match="^lm ([0-9]+) impt$"
+			sequence="50" regexp="y" enabled="y"
+		>
+		</alias>
+		
+		<alias 			
+			script="mob_clear_important"			
+			match="^lm ([0-9]+) impt clear$"
+			sequence="50" regexp="y" enabled="y"
+		>
+		</alias>
+				
+		<alias 			
+			script="mob_set_spawn"			
+			match="^lm ([0-9]+) sp$"
+			sequence="50" regexp="y" enabled="y"
+		>
+		</alias>
+		
+		<alias 			
+			script="mob_clear_spawn"			
+			match="^lm ([0-9]+) sp clear$"
+			sequence="50" regexp="y" enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_delete"
+			script="mob_delete"			
+			match="^lm ([0-9]+) delete"
+			sequence="50"			
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="goto_logger_mob"
+			match="^lg (?<index>[0-9]+)$"
+			enabled="y"
+			regexp="y"
+			sequence="100"
+			ignore_case="y"
+			script="goto_logger_mob"
+		>
+		</alias>
+		
+		<alias
+			name="loot_search"
+			script="loot_search"			
+			sequence="100"
+			match="^ll (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="key_search"
+			script="key_search"			
+			sequence="100"
+			match="^lk (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+	</aliases>
+	
+	<triggers>		
+		<trigger name="log_attack" group="logging"
+			script="log_attack"			
+			enabled="y" sequence="100"
+			regexp="y" match="^\[(\d+)\] Your ([\w\s-]+) (misses|tickles|bruises|scratches|grazes|nicks|scars|hits|injures|wounds|mauls|maims|mangles|mars|LACERATES|DECIMATES|DEVASTATES|ERADICATES|OBLITERATES|EXTIRPATES|INCINERATES|MUTILATES|DISEMBOWELS|MASSACRES|DISMEMBERS|RENDS|- BLASTS -|-= DEMOLISHES =-|\*\* SHREDS \*\*|\*\*\*\* DESTROYS \*\*\*\*|\*\*\*\*\* PULVERIZES \*\*\*\*\*|-=- VAPORIZES -=-|\<-==-\> ATOMIZES \<-==-\>|\<-:-\> ASPHYXIATES \<-:-\>|\<-\*-\> RAVAGES \<-\*-\>|\<\>\*\<\> FISSURES \<\>\*\<\>|\<\*\>\<\*\> LIQUIDATES \<\*\>\<\*\>|\<\*\>\<\*\>\<\*\> EVAPORATES \<\*\>\<\*\>\<\*\>|\<-=-\> SUNDERS \<-=-\>|\<=-=\>\<=-=\> TEARS INTO \<=-=\>\<=-=\>|\<-\>\*\<=\> WASTES \<=\>\*\<-\>|\<-\+-\>\<-\*-\> CREMATES \<-\*-\>\<-\+-\>|\<\*\>\<\*\>\<\*\>\<\*\> ANNIHILATES \<\*\>\<\*\>\<\*\>\<\*\>|\<--\*--\>\<--\*--\> IMPLODES \<--\*--\>\<--\*--\>|\<-\>\<-=-\>\<-\> EXTERMINATES \<-\>\<-=-\>\<-\>|\<-==-\>\<-==-\> SHATTERS \<-==-\>\<-==-\>|\<\*\>\<-:-\>\<\*\> SLAUGHTERS \<\*\>\<-:-\>\<\*\>|\<-\*-\>\<-\>\<-\*-\> RUPTURES \<-\*-\>\<-\>\<-\*-\>|\<-\*-\>\<\*\>\<-\*-\> NUKES \<-\*-\>\<\*\>\<-\*-\>|-\<\[=-\+-=\]\<:::\<\>:::\> GLACIATES \<:::\<\>:::\>\[=-\+-=\]\>-|\<-=-\>\<-:-\*-:-\>\<\*--\*\> METEORITES \<\*--\*\>\<-:-\*-:-\>\<-=-\>|\<-:-\>\<-:-\*-:-\>\<-\*-\> SUPERNOVAS \<-\*-\>\<-:-\*-:-\>\<-:-\>|does UNSPEAKABLE things to|does UNTHINKABLE things to|does UNIMAGINABLE things to|does UNBELIEVABLE things to) (.+). \[(\d+)\]$"			
+		>
+		</trigger>
+	
+		<trigger name="log_exp" group="logging"
+			script="log_exp"
+			enabled="y" sequence="100"			
+			regexp="y" match="^You receive (\d+)(\+(\d+))? experience points?\.$"			
+		>
+		</trigger>
+		
+		<trigger name="log_gold"
+			script="log_gold"
+			enabled="n" sequence="100"
+			regexp="y" match="^You get ([0-9,]+) gold coins? from the (.+) corpse of (.+)\.$"			
+		>
+		</trigger>					
+		
+		<trigger name="log_loot"
+			script="log_loot"
+			enabled="n" sequence="100"
+			regexp="y" match="^You get (?![0-9,]+ gold coins?)(.+) from the (.+) corpse of (?!Nokfah)(.+)\.$"			
+		>
+		</trigger>
+		
+		<trigger name="log_key"
+			script="log_key"
+			enabled="y" sequence="100"
+			regexp="y" match="^You unlock (.+) (with|using) (.+)\.$"			
+		>
+		</trigger>
+		
+		<trigger name="bonus_gold"
+			script="bonus_gold"
+			enabled="n" sequence="100"
+			regexp="y" match="^Your daily blessing added ([0-9,]+) gold to the corpse.$"			
+		>
+		</trigger>
+	</triggers>			
+				
+	<script>
+	<![CDATA[	
+		require "serialize"
+	
+		local dbloc = "loot.db"		
+		
+		local currentArea = ""
+		local currentRoom = ""
+		local bonusGold = 0
+		
+		local newFight = true
+		
+		local mobList = {}
+		local roomList = {}
+		
+		local currentState = "3"
+		
+		local updateBatch = {}
+	
+		function OnPluginInstall()
+			ColourNote("SteelBlue", "", GetPluginInfo (GetPluginID (), 3))
+			
+			-- Check the version and update the database accordingly
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)											
+			
+			local version = 0
+			local dbinfoExists = false
+			local existsSQL = "SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'dbinfo\';"
+			for val in lootDB:urows(existsSQL) do
+				dbinfoExists = true
+			end
+						
+			if dbinfoExists then				
+				local versionSQL = "SELECT val from dbinfo where name = \'version\'"
+				for val in lootDB:urows(versionSQL) do					
+					version = tonumber(val)
+				end
+				lootDB:close()
+			end
+			
+			ColourNote("orange", "", "Mob Logger DB version: " .. version)
+			if version < 2 then UpdateToVersion2() end					
+		end
+		
+		function UpdateToVersion2()
+			ColourNote("orange", "", "Updating database to version 2")
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)																
+			
+			-- Alter mob table to add important column
+			lootDB:exec("ALTER TABLE mob ADD COLUMN Important INTEGER;")
+			
+			-- Alter moblocation table to add spawn column
+			lootDB:exec("ALTER TABLE moblocation ADD COLUMN Spawn INTEGER")
+			
+			-- Create info table and insert version
+			lootDB:exec("CREATE TABLE dbinfo ( Name TEXT, Val TEXT );")
+			lootDB:exec("INSERT INTO dbinfo values (\'version\', \'2\');")
+			
+			lootDB:close()
+			ColourNote("orange", "", "Update complete")
+		end
+	
+		function OnPluginBroadcast (msg, id, name, text)			
+			-- All of this is just to keep tabs on our current room and area
+		
+		   -- Look for GMCP handler.
+		   if (id == '3e7dedbe37e44942dd46d264') then			  
+			  if (text == "char.status") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+				luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				assert (loadstring (luastmt or "")) ()																																		
+									
+				if (currentState ~= gmcpdata.state and currentState == "8") then								
+					newFight = true
+				end			
+
+				currentState = gmcpdata.state
+			  elseif (text == "room.info") then
+				 res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+				 luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				 assert (loadstring (luastmt or "")) ()
+							
+				-- Update the current area and room		
+				currentArea = gmcpdata.zone														
+				currentRoom = gmcpdata.num			
+
+				if (currentState == "3") then
+					local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)
+					local select = "select distinct m.name, mloot.name from mob m" ..
+								" inner join mobloot mloot on m.mobid = mloot.mobid" ..
+								" inner join moblocation mloc on m.mobid = mloc.mobid" ..
+								" inner join keyrequired_mobLoot kr_ml on mloot.moblootid = kr_ml.moblootid" ..
+								" inner join keyrequired kr on kr_ml.keyrequiredid = kr.keyrequiredid" ..
+								" where kr.roomnumber = " .. currentRoom
+					
+					-- report the keys for this room
+					for mob, item in lootDB:urows(select) do 						
+						ColourNote("orange", "black", "Key: " .. mob .. "|" .. item )
+					end		
+					
+					lootDB:close()
+				end
+			  end
+		   end		   
+		end -- onpluginbroadcast
+	
+		function pause_resume(name, line, wildcards)
+			if wildcards[1] == "resume" then
+				EnableTriggerGroup("logging", true)
+				ColourNote("orange", "", "Logging: ", "lime", "", "RESUMED")
+			else
+				EnableTriggerGroup("logging", false)
+				ColourNote("orange", "", "Logging: ", "red", "", "PAUSED")
+			end
+		end
+
+		function update_immediately()
+			DeleteTimer("execute_batch")
+			ExecuteBatch()
+			ColourNote("orange", "", "Database update complete")
+		end
+	
+		function log_attack(name, line, wildcards)
+			if (newFight) then
+				local now = os.clock()
+				
+				newFight = false
+				
+				local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)			
+				
+				local mobName = clean_input(wildcards[4])
+							
+				local select = "SELECT m.MobId, m.Name, ml.RoomNumber, ml.Occurrences FROM Mob as m INNER JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+						   " WHERE m.Name = \'" .. mobName .. "\'" ..					   
+						   " AND ml.Area = '" .. currentArea .. "';"								   		
+									
+				-- Iterate over the results to see if we need to create a new mob or room record
+				local newMob = true
+				local newRoom = true
+				local mobId = 0
+				local numOccur = 0
+				for id, name, room, occurrences in lootDB:urows(select) do 		
+					newMob = false
+					mobId = id					
+					if(currentRoom == tostring(room)) then					
+						numOccur = occurrences
+						newRoom = false
+					end				
+				end										
+				
+				if (newMob) then
+					table.insert(updateBatch, { op = "newmob", name = mobName, room = currentRoom, area = currentArea })									
+				elseif (newRoom) then
+					table.insert(updateBatch, { op = "newroom", mobId = mobId, room = currentRoom, area = currentArea })							
+				elseif (not newRoom and not newMob) then					
+					table.insert(updateBatch, { op = "updateoccurences", mobId = mobId, room = currentRoom })							
+				end					
+				
+				lootDB:close()  -- close it
+				
+				if (IsTimer("execute_batch") ~= error_code.eOK) then					
+					AddTimer("execute_batch", 0, 0, 59, "", timer_flag.Enabled + timer_flag.OneShot, "ExecuteBatch")
+				end	
+				
+				--Note("item queued " .. (os.clock() - now))
+			end
+		end
+
+		function NewMob(lootDB, name, room, area)
+			lootDB:exec("INSERT INTO Mob (name) Values(\'" .. name .. "\');")
+			local mobId = lootDB:last_insert_rowid()			
+			NewRoom(lootDB, mobId, room, area)
+		end
+		
+		function NewRoom(lootDB, mobId, room, area)			
+			lootDB:exec("INSERT INTO MobLocation (MobId, RoomNumber, Area) Values(" .. mobId .. ", " .. room .. ", \'" .. area .. "\');")						
+		end
+		
+		function UpdateOccurrences(lootDB, mobId, room)				
+			local select = "SELECT mobLocationId, occurrences FROM MobLocation WHERE RoomNumber = " .. room .. " AND MobId = " .. mobId .. ";"
+			
+			local occurrences
+			local mlId = 0
+			for mobLocationId, occurrencesDB in lootDB:urows(select) do 	
+				mlId = mobLocationId
+				occurrences = tonumber(occurrencesDB) + 1
+			end
+				
+			local updateOccurencesStatement = "UPDATE MobLocation SET Occurrences = :occurrences WHERE MobLocationId = :mlId;"
+			local preparedStmt = lootDB:prepare(updateOccurencesStatement)
+			preparedStmt:bind_names({occurrences = occurrences, mlId = mlId})
+			preparedStmt:step()
+		end
+		
+		function ExecuteBatch()
+			local now = os.clock()
+		
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)						
+			
+			
+			lootDB:exec("BEGIN TRANSACTION")
+			
+			local numberOfUpdates = 0
+
+			local nextOP = table.remove(updateBatch, 1)					
+			while nextOP ~= nil do								
+				if nextOP.op == "newmob" then
+					NewMob(lootDB, nextOP.name, nextOP.room, nextOP.area)
+				elseif nextOP.op == "newroom" then
+					NewRoom(lootDB, nextOP.mobId, nextOP.room, nextOP.area)
+				elseif nextOP.op == "updateoccurences" then
+					UpdateOccurrences(lootDB, nextOP.mobId, nextOP.room)
+				end				
+				
+				--Note(nextOP.op .. " executed " .. (os.clock() - now))
+				
+				nextOP = table.remove(updateBatch, 1)	
+
+				numberOfUpdates = numberOfUpdates + 1						
+			end
+
+			lootDB:exec("END TRANSACTION")
+			lootDB:close()
+			
+			--[[ColourNote(
+				"dimgray", "", "[",
+				"darkcyan", "", "BATCH COMPLETE",
+				"dimgray", "", "|",
+				"white", "", numberOfUpdates .. " in " .. string.format("%.2f", os.clock() - now),
+				"dimgray", "", "]")]]--
+
+			now = os.clock()
+		end
+	
+		function log_exp(name, line, wildcards)
+			newFight = true			
+		end
+	
+		function log_gold(name, line, wildcards)	
+			newFight = true			
+			
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)			
+			
+			local mobName = clean_input(wildcards[3])
+			
+			-- It is assumed that the mob record already exists
+			local select = "SELECT m.MobId, m.Name, ml.RoomNumber FROM Mob as m LEFT JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+					   " WHERE m.Name = \'" .. mobName .. "\'" ..					   					   
+					   " AND ml.RoomNumber = " .. currentRoom .. ";"
+								
+			-- Get the mobid			
+			local mobId = 0
+			for id, name, room in lootDB:urows(select) do 						
+				mobId = id											
+			end								
+
+			-- Update the kills and average gold			
+			for kills, gold in lootDB:urows("SELECT Kills, AvgGold FROM Mob WHERE MobId = " .. mobId .. ";") do
+				local totalGold = kills * gold
+				kills = kills + 1				
+				gold = (totalGold - bonusGold + tonumber(clean_number(wildcards[1]))) / kills								
+				lootDB:exec("UPDATE Mob SET Kills = " .. kills .. ", AvgGold = " .. gold .. " WHERE MobId = " .. mobId .. ";")								
+			end					
+			
+			-- reset the bonus gold
+			bonusGold = 0
+			
+			lootDB:close()  -- close it
+		end	
+
+		function bonus_gold(name, line, wildcards)		
+			bonusGold = tonumber(clean_number(wildcards[1]))
+		end
+
+		function log_loot(name, line, wildcards)	
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)
+			
+			local mobName = clean_input(wildcards[3])
+			local lootName = clean_input(wildcards[1])
+			
+			local select = "SELECT m.MobId FROM Mob as m LEFT JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+					   " WHERE m.Name = \'" .. mobName .. "\'" ..					   
+					   " AND ml.Area = '" .. currentArea .. "'" ..
+					   " AND ml.RoomNumber = " .. currentRoom .. ";"
+								
+			-- Get the id of the mob			
+			local mobId = 0
+			for id in lootDB:urows(select) do 						
+				mobId = id					
+			end			
+			
+			-- Check if the item already exists
+			local lootExists = false
+			for id in lootDB:urows("SELECT MobLootId FROM MobLoot WHERE MobId = " .. mobId .. " AND Name = \'" .. lootName .. "\';") do
+				lootExists = true
+			end
+			
+			if (not lootExists) then
+				-- Log the item as associated with the mob			
+				lootDB:exec("INSERT INTO MobLoot (MobId, Name) Values(" .. mobId .. ", \'" .. lootName .."\');")										
+				-- ColourNote("orange", "black", "Item Logged: " .. lootName)
+			end
+								
+			lootDB:close()  -- close it
+		end		
+		
+		function log_key(name, line, wildcards)			   			
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)
+			
+			local itemName = clean_input(wildcards[3])			
+			
+			local select = "SELECT KeyRequiredId FROM KeyRequired" ..
+					   " WHERE RoomNumber = " .. currentRoom .. 
+					   " AND ItemName = \'" .. itemName .. "\';"					   		
+								
+			-- Check if the key is already logged			
+			local keyExists = false
+			local keyRequiredId = 0
+			for id in lootDB:urows(select) do
+				keyRequiredId = id
+				keyExists = true				
+			end								
+			
+			if (not keyExists) then
+				-- Log the key			
+				lootDB:exec("INSERT INTO KeyRequired (RoomNumber, ItemName) Values(" .. currentRoom .. ", \'" .. itemName .."\');")										
+				keyRequiredId = lootDB:last_insert_rowid()					
+			
+				-- Find the mob loot
+				select = "SELECT MobLootId from MobLoot ml INNER JOIN MobLocation mloc ON ml.MobId = mloc.MobId" .. 
+						 " WHERE ml.Name = \'" .. itemName	.. "\'" .. 
+					     " AND mloc.Area = \'" .. currentArea .. "\';"
+				
+				-- Link the mob loot to the key requirement 
+				for id in lootDB:urows(select) do 						
+					lootDB:exec("INSERT INTO KeyRequired_MobLoot (KeyRequiredId, MobLootId) VALUES(" ..	keyRequiredId .. "," .. id .. ");")			
+					ColourNote("orange", "black", "Key Linked to Mob")
+				end				
+			else 
+				-- Check to see if the key is not loked
+				select = "SELECT KeyRequired_MobLootId FROM KeyRequired_MobLoot WHERE KeyRequiredId = " .. keyRequiredId
+				local isLinked = false
+				for id in lootDB:urows(select) do 						
+					isLinked = true
+				end	
+				
+				if (not isLinked) then
+					-- Find the mob loot
+					select = "SELECT MobLootId from MobLoot ml INNER JOIN MobLocation mloc ON ml.MobId = mloc.MobId" .. 
+							 " WHERE ml.Name = \'" .. itemName	.. "\'" .. 
+							 " AND mloc.Area = \'" .. currentArea .. "\';"
+					
+					-- Link the mob loot to the key requirement 
+					for id in lootDB:urows(select) do 						
+						lootDB:exec("INSERT INTO KeyRequired_MobLoot (KeyRequiredId, MobLootId) VALUES(" ..	keyRequiredId .. "," .. id .. ");")			
+						ColourNote("orange", "black", "Key Linked to Mob")
+					end	
+				end
+			end
+								
+			lootDB:close()  -- close it
+		end			
+		
+		function mob_delete(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			local mobId = mobList[mobNum].id				
+												
+			local delete = "DELETE from MobLocation WHERE MobId = \'" .. mobList[mobNum].id .. "\'"						
+			lootDB:exec(delete)
+			
+			delete = "DELETE from MobLoot WHERE MobId = \'" .. mobList[mobNum].id .. "\'"						
+			lootDB:exec(delete)
+			
+			delete = "DELETE from Mob WHERE MobId = \'" .. mobList[mobNum].id .. "\'"						
+			lootDB:exec(delete)
+						
+			ColourNote("orange", "black", mobList[mobNum].name .. " removed from database")		
+			
+			lootDB:close()
+		end
+		
+		function mob_search(name, line, wildcards)				
+			get_mob_rooms("%" .. string.gsub(wildcards[1], " ", "%%") .. "%")	
+						
+		end
+		
+		function mob_search_exact(name, line, wildcards)				
+			get_mob_rooms(wildcards[1])									
+		end
+		
+		function mob_search_here(name, line, wildcards)				
+			get_mob_rooms("%" .. string.gsub(wildcards[1], " ", "%%") .. "%", currentArea)
+		end
+		
+		function mob_search_exact_here(name, line, wildcards)				
+			get_mob_rooms(wildcards[1], currentArea)
+		end
+		
+		function get_mob_rooms(mobName, areaName)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			mobName = clean_input(mobName)
+			
+			local select = "SELECT m.MobId, m.Name, m.Keyword, m.Important, ml.MobLocationId, ml.Area, ml.RoomNumber, ml.Occurrences, ml.Spawn" .. 
+						   " FROM Mob as m INNER JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+					       " WHERE m.Name like \'" .. mobName .. "\'"
+			if (areaName ~= nil and areaName ~= "") then
+				select = select .. " AND ml.Area like \'%" .. areaName .. "%\'"
+			end
+					   
+			local rowCount = 0
+			local roomIds = ""
+			local mobs = {}
+		    for mobId, mobName, mobKeyword, mobImportant, mobLocationId, areaName, roomId, mobOccurrences, mobSpawn in lootDB:urows(select) do
+				rowCount = rowCount + 1
+				roomIds = roomIds .. roomId .. ","
+				
+				local key = mobName .. " | " .. areaName
+				if (mobs[key] == nil) then mobs[key] = { id = mobId, mob = mobName, keyword = mobKeyword, important = mobImportant, locations = {} } end				
+				table.insert(mobs[key].locations, { id = mobLocationId, area = areaName, room = roomId, occurrences = mobOccurrences, spawn = mobSpawn })				
+			end	
+			lootDB:close()					
+			
+			if (rowCount == 0) then
+				ColourNote("orange", "black", "No mobs found")
+			else
+				local search_rooms_sql = 
+					"SELECT distinct r.uid as uid, r.name as name, info, " ..
+					"r.norecall as recall, r.noportal as portal " ..					
+					"FROM rooms r " ..
+					"LEFT OUTER JOIN areas a ON r.area = a.uid " ..
+					"WHERE r.uid in (" .. string.sub(roomIds, 1, -2) .. ")"
+				
+				local worldPath = GetInfo(66)..Trim(string.gsub(WorldName(), "[^%w%s()_-]", ""))
+				local mapperDB = assert(sqlite3.open(worldPath .. ".db"))
+					
+				local rooms = {}
+				for roomId, roomName, roomInfo, roomRecall, roomPortal in mapperDB:urows(search_rooms_sql) do							
+					rooms[tonumber(roomId)] = { id = locationId, name = roomName, info = roomInfo, norecall = roomRecall, noportal = roomPortal }					
+				end
+				mapperDB:close()
+				
+				mobList = {}
+				roomList = {}
+				mobIndex = 1
+				roomIndex = 1
+				for mob, mobInfo in spairs(mobs, function(t,a,b) return string.len(string.sub(a, 1, string.find(a, "|"))) < string.len(string.sub(b, 1, string.find(b, "|"))) end) do
+					local importantText = ""
+					if mobInfo.important == 1 then importantText = " !!" end
+					ColourNote(
+						"white", "black", mobIndex .. ". " .. mob .. " (" .. (mobInfo.keyword or "") .. ")",
+						"limegreen", "", importantText)
+					mobList[mobIndex] = { name = mobInfo.mob, id = mobInfo.id }
+					mobIndex = mobIndex + 1	
+					for mob, locationInfo in spairs(mobInfo.locations, function(t,a,b) return tonumber(t[a].occurrences or "0") > tonumber(t[b].occurrences or "0") end) do						
+						-- IF to make sure the room is in the mapper db first
+						if (rooms[tonumber(locationInfo.room)] ~= nil) then
+							ColourTell("lightblue", "black", string.sub("   " .. roomIndex .. ".   ", 1, 6))
+							ColourTell("lime", "black", "(" .. locationInfo.occurrences .. ")")	
+									
+							-- spawn
+							if (locationInfo.spawn == 1) then
+								ColourTell("yellow", "", "[S]")
+							end
+									
+							-- pk
+							if (rooms[tonumber(locationInfo.room)].info ~= nil and string.find(rooms[tonumber(locationInfo.room)].info, "pk") ~= nil) then
+								ColourTell ("Red", "black", "[PK]")
+							end
+							
+							-- norecall
+							if (rooms[tonumber(locationInfo.room)].norecall ~= nil and rooms[tonumber(locationInfo.room)].norecall == 1) then
+								ColourTell ("darkorange", "black", "[R]")
+							end
+							
+							--noportal
+							if (rooms[tonumber(locationInfo.room)].noportal ~= nil and rooms[tonumber(locationInfo.room)].noportal == 1) then
+								ColourTell ("darkorange", "black", "[P]")
+							end							
+							
+							ColourNote("lightblue", "black", rooms[tonumber(locationInfo.room)].name .. " | " .. locationInfo.room)
+						
+							roomList[roomIndex] = { id = locationInfo.id, room = locationInfo.room }
+							roomIndex = roomIndex + 1	
+						end
+					end
+					ColourNote("white", "black", "")
+				end
+					
+			end	
+		end
+		
+		function mob_set_keyword(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Keyword = \'" .. wildcards[2] .. "\'" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("orange", "", "Keyword for ",
+				"cyan", "", mobList[mobNum].name,
+				"orange", "", " set to ",
+				"lime", "", wildcards[2])		
+			
+			lootDB:close()
+		end
+		
+		function mob_clear_keyword(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Keyword = \'\'" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("orange", "", "Keyword for ", 
+				"cyan", "", mobList[mobNum].name, 
+				"red", "", " cleared")		
+			
+			lootDB:close()
+		end
+		
+		function mob_set_important(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Important = 1" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("cyan", "black", mobList[mobNum].name, 
+				"lime", "", " flagged ", 
+				"orange", "", "as important")		
+			
+			lootDB:close()
+		end
+		
+		function mob_clear_important(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Important = 0" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("cyan", "", mobList[mobNum].name, 
+				"red", "", " unflagged ", 
+				"orange", "", "as important")
+			
+			lootDB:close()
+		end
+		
+		function mob_set_spawn(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local roomNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE MobLocation" .. 
+						   " SET Spawn = 1" ..
+					       " WHERE MobLocationId = \'" .. roomList[roomNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("cyan", "", roomList[roomNum].room,
+				"lime", "", " flagged",
+				"orange", "", " as spawn room")		
+			
+			lootDB:close()
+		end
+		
+		function mob_clear_spawn(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local roomNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE MobLocation" .. 
+						   " SET Spawn = 0" ..
+					       " WHERE MobLocationId = \'" .. roomList[roomNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("cyan", "", roomList[roomNum].room,
+				"red", "", " unflagged",
+				"orange", "", " as spawn room")
+			
+			lootDB:close()
+		end
+		
+		function goto_logger_mob(name, line, wildcards)			
+			local index = tonumber(wildcards[1])
+			if (roomList[index] ~= nil) then
+				local cmd = "mapper goto " .. roomList[index].room
+				ColourNote("Orange", "Black", cmd)
+				Execute(cmd)
+			end
+		end
+		
+		function loot_search(name, line, wildcards)				
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)			
+			
+			local lootName = clean_input(wildcards[1])
+			
+			local select = "SELECT mloot.Name, m.Name, mloc.Area, mloc.RoomNumber " ..
+						   "FROM MobLoot mloot " ..
+						   "INNER JOIN Mob m ON mloot.MobId = m.MobId " ..
+						   "INNER JOIN MobLocation mloc ON m.MobId = mloc.MobId " ..
+						   "WHERE mloot.Name like \'" .. lootName .. "\'"
+			
+				
+			local rowCount = 0				
+		    for loot, mob, area, roomNum in lootDB:urows(select) do 										
+				rowCount = rowCount + 1
+				ColourNote("orange", "black", loot .. " | " .. mob .. " | " .. area .. " | " .. roomNum)
+			end	
+			
+			if (rowCount == 0) then
+				ColourNote("orange", "black", "No loot found")
+			end
+			
+			lootDB:close()
+		end
+		
+		function key_search(name, line, wildcards)				
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)			
+			
+			local keyName = clean_input(wildcards[1])
+			
+			local select = "SELECT kr.ItemName, kr.RoomNumber, m.Name, mloc.Area, mloc.RoomNumber " ..
+						   "FROM KeyRequired kr " ..
+						   "INNER JOIN KeyRequired_MobLoot kr_ml ON kr.KeyRequiredId = kr_ml.KeyRequiredId " ..
+						   "INNER JOIN MobLoot mloot ON kr_ml.MobLootId = mloot.MobLootId " ..
+						   "INNER JOIN Mob m ON mloot.MobId = m.MobId " ..
+						   "INNER JOIN MobLocation mloc ON m.MobId = mloc.MobId " ..
+						   "WHERE kr.ItemName like \'" .. keyName .. "\'"
+			
+				
+			local rowCount = 0				
+		    for key, keyRoom, mob, area, mobRoom in lootDB:urows(select) do 										
+				rowCount = rowCount + 1
+				ColourNote("orange", "black", key .. " | " .. keyRoom .. " | " .. mob .. " | " .. area .. " | " .. mobRoom)
+			end	
+			
+			if (rowCount == 0) then
+				ColourNote("orange", "black", "No keys found")
+			end
+			
+			lootDB:close()
+		end
+		
+		function clean_input(input)
+			return (string.gsub(input, "\'", ""))
+		end
+		
+		function clean_number(number)
+		    return (string.gsub(number, ",", ""))
+		end
+		
+		-- Taken from http://stackoverflow.com/questions/15706270/sort-a-table-in-lua
+		function spairs(t, order)
+			-- collect the keys
+			local keys = {}
+			for k in pairs(t) do keys[#keys+1] = k end
+
+			-- if order function given, sort by it by passing the table and keys a, b,
+			-- otherwise just sort the keys 
+			if order then
+				table.sort(keys, function(a,b) return order(t, a, b) end)
+			else
+				table.sort(keys)
+			end
+
+			-- return the iterator function
+			local i = 0
+			return function()
+				i = i + 1
+				if keys[i] then
+					return keys[i], t[keys[i]]
+				end
+			end
+		end
+	]]>
+	</script>
+</muclient>

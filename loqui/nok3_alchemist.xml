@@ -1,0 +1,806 @@
+<muclient>
+	<plugin
+		name="Nok3_Alchemist"
+		author="Nokfah"
+		id="f7d314c12df89a4093baedfa"
+		language="Lua"
+		purpose="Aids in brewing and scribing"	
+		save_state="y"		
+	>
+	<description trim="n">
+		<![CDATA[
+==================== Alchemist Help ====================
+	alch         -- shows brew/scribe stats
+	alch clear   -- clears brew-scribe stats
+
+	alch refresh -- refreshes inventory using invdata
+
+	alch bag <id>                   -- sets bag to store pots and scrolls
+	alch completecommand <command>  -- the command to execute once scribing/brewing is complete
+	
+	== BREWING ===
+	b(inc|rc|reg) <#>(optional)  -- brews a potion or # of potions
+	b(inc|rc|reg) spells <#>     -- sets the number of spells per potion
+	q(inc|rc|reg)                -- quaffs a potion	
+	
+	binc -- incomplete healing
+	brc  -- remove curse
+	breg -- regeneration
+
+	== SCRIBING ===
+	s(inc|cur|rev|ph|reg) <#>(optional)      -- scribes a scroll or # of scrolls						            
+	s(inc|cur|rev|ph|reg) spells <#>         -- sets the number of spells per scroll
+	r(inc|cur|rev|ph|reg) <player>(optional) -- recites a scroll on yourself or a player
+
+	sinc -- incomplete healing
+	scur -- curse
+	srev -- reverse align
+	sph  -- party heal	
+		]]>
+	</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>			
+		
+	<aliases>		
+		<alias script="show_help" enabled="y" 
+			regexp="y" match="^alch help$"					
+		></alias>
+	
+		<alias script="Show" enabled="y"
+			regexp="y" match="^alch$"						
+		></alias>			
+		
+		<alias script="Clear" enabled="y"
+			regexp="y" match="^alch clear$"				
+		></alias> 
+
+		<alias script="InventoryRefresh" enabled="y"
+			regexp="y" match="^alch refresh$"				
+		></alias> 
+		
+		<alias script="SetBag" enabled="y"
+			regexp="y" match="^alch bag (.*)$"		
+		></alias>
+		
+		<alias script="SetCompleteCommand" enabled="y"
+			regexp="y" match="^alch completecommand (.*)?$"				
+		></alias>
+
+		<alias script="Cancel" enabled="y"
+			regexp="y" match="^alch cancel$"				
+		></alias>
+
+		<alias script="BuyScrolls" enabled="y"
+			regexp="y" match="^bscroll(?: ([0-9]+))?$"				
+		></alias>
+
+		<alias script="BuyVials" enabled="y"
+			regexp="y" match="^bvial(?: ([0-9]+))?$"				
+		></alias>
+
+		<!-- Brew -->
+		<alias script="BrewStart" enabled="y"
+			regexp="y" match="^b(?<spell>inc|rc|reg)(?: (?<count>[0-9]+)?)?$"				
+		></alias>	
+
+		<alias script="TargetBrewSpells" enabled="y"
+			regexp="y" match="^b(?<spell>inc|rc|reg) spells (?<count>[1-4])?$"	
+		></alias>
+		
+		<alias script="Quaff" enabled="y"
+			regexp="y" match="^q(?<spell>inc|rc|reg)$"			
+		></alias>	
+	
+
+		<!-- Scribe -->
+		<alias script="ScribeStart" enabled="y"
+			regexp="y" match="^s(?<spell>cur|inc|rev|ph|reg)(?: (?<count>[0-9]+)?)?$"					
+		></alias>
+		
+		<alias	script="TargetScribeSpells" enabled="y"
+			regexp="y" match="^s(?<spell>cur|inc|rev|ph|reg) spells (?<count>[1-4])?$"				
+		></alias>
+
+		<alias script="Recite" enabled="y"
+			regexp="y" match="^r(?<spell>cur|inc|rev|ph|reg)(?: (?<who>.*))?$"				
+		></alias>					
+	</aliases>
+		
+	<triggers>								
+		<trigger script="Success"	
+			enabled="n" group="result"
+		    regexp="y" match="^You have imbued a new spell to the potion\."	
+			sequence="100"
+		></trigger>			
+		
+		<trigger script="Fail"	
+			enabled="n" group="result"
+		    regexp="y" match="^The magic enchantment has failed \-\-\- the potion vanishes\.$"	
+			sequence="100"
+		></trigger>
+
+		<trigger script="Fail"	
+			enabled="n" group="result"
+		    regexp="y" match="^.* explodes violently!$"	
+			sequence="100"
+		></trigger>
+		
+		
+		<trigger script="Success"	
+			enabled="n" group="result"
+		    regexp="y" match="^You have imbued a new spell to the scroll\."	
+			sequence="100"
+		></trigger>		
+		
+		<trigger script="Fail"	
+			enabled="n" group="result"
+		    regexp="y" match="^The magic enchantment has failed \-\-\- the scroll vanishes\.$"	
+			sequence="100"
+		></trigger>	
+
+		<trigger script="Fail"	
+			enabled="n" group="result"
+		    regexp="y" match="^.* bursts into flames!$"	
+			sequence="100"
+		></trigger>
+
+
+		<trigger script="Quaffed" 
+			enabled="y" name="quaffed"
+			regexp="y" match="^You quaff a potion of (.*)$"
+			omit_from_output="y"
+		></trigger>
+
+		<trigger script="Recited" 
+			enabled="y" name="recited"
+			regexp="y" match="^You recite a scroll of (.*) on .*$"
+			omit_from_output="y"
+		></trigger>		
+
+
+		<trigger script="InvdataCapture" 
+			enabled="n" group="invdata"
+			regexp="y" match="^[0-9]+,\w*,a (potion|scroll) of (.*),[0-9]+,[0-9]+,[0-9]+,[\-0-9]+,[0-9]+$"
+		></trigger>		
+
+		<trigger script="InvdataEnd" 
+			enabled="n" group="invdata"
+			regexp="y" match="^\{/invdata\}$"
+		></trigger>		
+	</triggers>
+				
+	<script>
+	<![CDATA[					
+		require "serialize"
+	
+		local settings = {
+			bag = "",
+			completeCommand = "",
+			inc = {
+				brew = 1,
+				scribe = 1
+			},
+			cur = {				
+				scribe = 1
+			},
+			rev = {				
+				scribe = 1
+			},
+			ph = {
+				scribe = 1
+			},
+			rc = {
+				brew = 1
+			},
+			reg = {
+				brew = 1,
+				scribe = 1
+			}
+		}
+		if (GetVariable("alch_settings") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("alch_settings")
+			assert (loadstring (luastmt or "")) ()		
+			settings = obj
+
+			if settings.rc == nil then
+				settings.rc = {
+					brew = 1					
+				}
+			end
+
+			if settings.reg == nil then
+				settings.reg = {
+					brew = 1,
+					scribe = 1
+				}
+			end
+		end		
+				
+		local targetConsumables = 0
+		local sessionSuccess = 0
+		local sessionFail = 0
+		local consumable = nil
+		local potsAndScrolls = nil		
+
+
+		-- Stats Class
+		local Stats = {}
+		Stats.__index = Stats
+
+		function Stats:New()
+			local stats = {}
+			setmetatable(stats, Stats)
+			
+			stats[1] = { success = 0, fail = 0}
+			stats[2] = { success = 0, fail = 0}
+			stats[3] = { success = 0, fail = 0}
+			stats[4] = { success = 0, fail = 0}				
+
+			return stats
+		end	
+
+		function Stats:Success(spellCount)
+			self[spellCount].success = self[spellCount].success + 1
+			self:Save()
+		end
+
+		function Stats:Fail(spellCount)
+			self[spellCount].fail = self[spellCount].fail + 1
+			self:Save()
+		end
+
+		function Stats:Save()
+			SetVariable("stats", serialize.save_simple(self))
+		end
+
+		function Stats:Load()			
+			if (GetVariable("stats") ~= nil) then			
+				luastmt = "loadTbl = " .. GetVariable("stats")
+				assert (loadstring (luastmt or "")) ()						
+
+				self[1] = loadTbl[1]
+				self[2] = loadTbl[2]
+				self[3] = loadTbl[3]
+				self[4] = loadTbl[4]	
+			end
+		end
+
+		local stats = Stats:New()
+		stats:Load()
+
+
+		-- Inventory Class
+		local Inventory = {}
+		Inventory.__index = Inventory
+
+		function Inventory:New(name, bag)
+			local inv = {}
+			setmetatable(inv, Inventory)
+				
+			inv.inventory = {}		
+			inv.name = name
+			inv.bag = bag
+
+			return inv
+		end					
+
+		function Inventory:Count(consumable)
+			if self.inventory[consumable.type] == nil then return 0 end
+			if self.inventory[consumable.type][consumable.spell] == nil then return 0 end
+			if self.inventory[consumable.type][consumable.spell][consumable.spellCount] == nil then return 0 end
+
+			return self.inventory[consumable.type][consumable.spell][consumable.spellCount]
+		end		
+
+		function Inventory:Add(consumable, amount)
+			amount = amount or 1
+
+			if self.inventory[consumable.type] == nil then self.inventory[consumable.type] = {} end
+			if self.inventory[consumable.type][consumable.spell] == nil then self.inventory[consumable.type][consumable.spell] = {} end
+			if self.inventory[consumable.type][consumable.spell][consumable.spellCount] == nil then self.inventory[consumable.type][consumable.spell][consumable.spellCount] = 0 end
+			
+			self.inventory[consumable.type][consumable.spell][consumable.spellCount] = self.inventory[consumable.type][consumable.spell][consumable.spellCount] + amount			
+
+			self:Save()
+		end
+
+		function Inventory:Rem(consumable, amount)
+			amount = amount or 1
+			amount = -1 * amount 
+			self:Add(consumable, amount)
+		end
+
+		function Inventory:Get(consumable)
+			SendNoEcho("get \'" .. consumable.type .. " " .. consumable.fullSpellName .. "\' " .. self.bag)
+		end
+
+		function Inventory:GetBlank(consumable)
+			if consumable.type == "scroll" then
+				SendNoEcho("get \'blank scroll \' " .. self.bag)
+				SendNoEcho("hold \'blank scroll \'")
+			elseif consumable.type == "potion" then
+				SendNoEcho("get \'empty vial \' " .. self.bag)
+				SendNoEcho("hold \'empty vial \'")
+			end
+		end
+
+		function Inventory:BuyBlank(consumable, amount)				
+			if consumable.type == "scroll" then
+				Execute("mapper goto 32467")
+				SendNoEcho("buy " .. tostring(amount) .. " \'blank scroll \' " .. self.bag)
+				SendNoEcho("put all.\'blank scroll \' " .. self.bag)
+			elseif consumable.type == "potion" then
+				Execute("mapper goto 32476")
+				SendNoEcho("buy " .. tostring(amount) .. " \'empty vial \' " .. self.bag)
+				SendNoEcho("put all.\'empty vial \' " .. self.bag)
+			end
+		end
+
+		function Inventory:Put(consumable)			
+			SendNoEcho("put \'" .. consumable.type .. " " .. consumable.fullSpellName .. "\' " .. self.bag)
+		end
+
+		function Inventory:Clear()
+			self.inventory = {}
+			self:Save()
+		end
+
+		function Inventory:Save()
+			SetVariable(self.name, serialize.save_simple(self.inventory))			
+		end
+
+		function Inventory:Load()			
+			if (GetVariable(self.name) ~= nil) then			
+				luastmt = "savedData = " .. GetVariable(self.name)
+				assert (loadstring (luastmt or "")) ()								
+				if savedData ~= nil then self.inventory = savedData end				
+			end
+		end		
+
+		-- Consumable Class | Don't use this class directly!
+		local Consumable = {}
+		Consumable.__index = Consumable
+
+		function Consumable:New(spell, spellCount)
+			local consumable = {}
+			setmetatable(consumable, Consumable)			
+
+			consumable.spell = spell
+			consumable.spellCount = spellCount
+			consumable.spellsAdded = 0
+			consumable.bag = bag
+			consumable.type = ""
+
+			consumable.spells = {
+				inc = "Incomplete Healing",
+				cur = "Curse",
+				rev = "Reverse Align",
+				ph = "Party Heal",
+				rc = "Remove Curse",
+				reg = "Regeneration"		
+			}
+			consumable.fullSpellName = consumable.spells[consumable.spell]						
+
+			return consumable
+		end
+
+		function Consumable:Reset()
+			self.spellsAdded = 0
+		end
+
+		function Consumable:SpellSuccess()
+			self.spellsAdded = self.spellsAdded + 1
+		end
+
+		function Consumable:IsComplete()
+			return self.spellsAdded >= self.spellCount
+		end
+
+		-- override in child class				
+		function Consumable:Remove() end
+		function Consumable:Consume() end
+		function Consumable:AddSpell() end	
+
+		-- Potion Class
+		local Potion = Consumable:New()
+		Potion.__index = Potion
+
+		function Potion:New(spell, spellCount)
+			local potion = Consumable:New(spell, spellCount)
+			setmetatable(potion, Potion)
+
+			potion.type = "potion"
+
+			return potion
+		end
+
+		function Potion:Remove()
+			SendNoEcho("rem \'" .. self.type .. " " .. self.fullSpellName .. "\'")			
+		end
+
+		function Potion:Consume()
+			SendNoEcho("quaff \'" .. self.type .. " " .. self.fullSpellName .. "\'")
+		end
+
+		function Potion:AddSpell()		
+			SendNoEcho("brew \'" .. self.fullSpellName .. "\'")
+		end
+
+		-- Scroll Class
+		local Scroll = Consumable:New()
+		Scroll.__index = Scroll
+
+		function Scroll:New(spell, spellCount)
+			local scroll = Consumable:New(spell, spellCount)
+			setmetatable(scroll, Scroll)
+
+			scroll.type = "scroll"
+
+			return scroll
+		end
+
+		function Scroll:Remove()
+			SendNoEcho("rem \'" .. self.type .. " " .. self.fullSpellName .. "\'")			
+		end
+
+		function Scroll:Consume(player)
+			SendNoEcho("recite \'" .. self.type .. " " .. self.fullSpellName .. "\' " .. (player or ""))			
+		end
+
+		function Scroll:AddSpell()			
+			SendNoEcho("scribe \'" .. self.fullSpellName .. "\'" )
+		end		
+
+
+		function OnPluginInstall()					
+			show_help()
+
+			consumable = Consumable:New(nil, nil)
+
+			potsAndScrolls = Inventory:New("inventory", settings.bag)
+			potsAndScrolls:Load()
+		end
+		
+		function show_help()
+			ColourNote("orange", "black", GetPluginInfo(GetPluginID (), 3))
+		end							
+		
+		function SaveSettings()
+			SetVariable("alch_settings", serialize.save_simple(settings))
+		end
+
+		function SetBag(name, line, wildcards)
+			settings.bag = wildcards[1]
+			potsAndScrolls.bag = settings.bag
+			SaveSettings()
+			ColourNote("orange", "", "Bag set to: ", "cyan", "", settings.bag)
+		end
+		
+		function SetCompleteCommand(name, line, wildcards)
+			settings.completeCommand = wildcards[1]
+			SaveSettings()
+			ColourNote("orange", "", "Command after complete set to: ", "cyan", "", settings.completeCommand)
+		end
+		
+		function CompleteCommand()
+			Execute(settings.completeCommand)
+		end		
+
+		function Cancel()
+			targetConsumables = 0	
+			CompleteCommand()
+		end
+
+		function BrewStart(name, line, wildcards)
+			targetConsumables = tonumber(wildcards.count) or 1							
+			sessionSuccess = 0
+			sessionFail = 0
+
+			consumable = Potion:New(wildcards.spell, settings[wildcards.spell].brew)				
+			
+			EnableGroup("result", true)
+			Start()
+		end
+
+		function ScribeStart(name, line, wildcards)
+			targetConsumables = tonumber(wildcards.count) or 1							
+			sessionSuccess = 0
+			sessionFail = 0
+
+			consumable = Scroll:New(wildcards.spell, settings[wildcards.spell].scribe)				
+			
+			EnableGroup("result", true)
+			Start()
+		end
+
+		function Start()
+			ColourTell("orange", "", "Making ", "cyan", "", targetConsumables, "orange", "", " with ", 
+					   "cyan", "", consumable.spellCount, "orange", "", " spell(s) ")	
+			ReportSession()		
+			ColourNote("white", "", " (" .. potsAndScrolls:Count(consumable) .. ")")
+
+			potsAndScrolls:GetBlank(consumable)
+			consumable:AddSpell()
+		end
+
+		function Success()
+			consumable:SpellSuccess()
+
+			if consumable:IsComplete() then				
+				stats:Success(consumable.spellCount)
+				Done()				
+			else
+				consumable:AddSpell()
+			end
+		end
+
+		function Fail()
+			stats:Fail(consumable.spellCount)
+			Done()
+		end
+
+		function Done()
+			if consumable:IsComplete() then
+				sessionSuccess = sessionSuccess + 1
+
+				consumable:Remove()
+				potsAndScrolls:Put(consumable)				
+				potsAndScrolls:Add(consumable)				
+			else
+				sessionFail = sessionFail + 1
+			end
+
+			targetConsumables = targetConsumables - 1
+
+			if targetConsumables <= 0 then
+				-- Done with session
+				EnableGroup("result", false)
+
+				ColourTell("orange", "", "Session complete")
+				ReportSession()		
+				ColourNote("white", "", " (" .. potsAndScrolls:Count(consumable) .. ")")
+				CompleteCommand()
+			else
+				-- On to next consumable
+				consumable:Reset()
+				Start()
+			end
+		end
+		
+		function Quaff(name, line, wildcards)
+			EnableTrigger("quaffed", true)
+
+			local potion = Potion:New(wildcards.spell)
+
+			potsAndScrolls:Get(potion)
+			potion:Consume()						
+		end
+
+		function Quaffed(name, line, wildcards, styles)	
+			EnableTrigger("quaffed", false)
+
+			local spell, count = FindSpellAndCount(wildcards[1])
+			local quaffed = Potion:New(spell, count)	
+
+			if spell ~= nil and count ~= nil then
+				potsAndScrolls:Rem(quaffed)
+			end
+
+			-- output with remaining pots
+			for i, style in ipairs(styles) do
+				ColourTell(RGBColourToName(style.textcolour), "", style.text)
+			end				
+
+			ColourNote("white", "", " (" .. tostring(potsAndScrolls:Count(quaffed)) .. ")")
+		end
+		
+		function TargetBrewSpells(name, line, wildcards)			
+			settings[wildcards.spell].brew = tonumber(wildcards.count)
+			SaveSettings()			
+			
+			ColourNote("orange", "", "Brew spell count for ",
+				"cyan", "", consumable.spells[wildcards.spell],
+				"orange", "", " set to: ", 
+				"cyan", "", tostring(settings[wildcards.spell].brew))
+		end		
+		
+		function Recite(name, line, wildcards)
+			EnableTrigger("recited", true)
+
+			local scroll = Scroll:New(wildcards.spell)
+
+			potsAndScrolls:Get(scroll)
+			scroll:Consume(wildcards.who)
+		end
+		
+		function Recited(name, line, wildcards, styles)	
+			EnableTrigger("recited", false)
+
+			local spell, count = FindSpellAndCount(wildcards[1])
+			local recited = Scroll:New(spell, count)	
+
+			if spell ~= nil and count ~= nil then
+				potsAndScrolls:Rem(recited)
+			end
+
+			-- output with remaining pots
+			for i, style in ipairs(styles) do
+				ColourTell(RGBColourToName(style.textcolour), "", style.text)
+			end				
+
+			ColourNote("white", "", " (" .. tostring(potsAndScrolls:Count(recited)) .. ")")
+		end
+
+		function TargetScribeSpells(name, line, wildcards)			
+			settings[wildcards.spell].scribe = tonumber(wildcards.count)
+			SaveSettings()			
+			
+			ColourNote("orange", "", "Scribe spell count for ",
+				"cyan", "", consumable.spells[wildcards.spell],
+				"orange", "", " set to: ", 
+				"cyan", "", tostring(settings[wildcards.spell].scribe))
+		end	
+		
+		------------------------
+		-- Inventory
+		------------------------
+		function InventoryRefresh()
+			EnableTriggerGroup("invdata", true)
+			
+			potsAndScrolls:Clear()
+
+			Execute("invdata " .. settings.bag)
+		end
+
+		function InvdataEnd()
+			EnableTriggerGroup("invdata", false)			
+			Execute("alch")
+		end
+
+		function InvdataCapture(name, line, wildcards)					
+			local spell, count = FindSpellAndCount(wildcards[2])
+			
+			local captured = nil
+			if wildcards[1] == "scroll" then
+				captured = Scroll:New(spell, count)
+			elseif wildcards[1] == "potion" then
+				captured = Potion:New(spell, count)
+			end
+						
+			potsAndScrolls:Add(captured)		
+		end
+
+		function BuyScrolls(name, line, wildcards)
+			local amount = 50
+			if wildcards[1] ~= nil and wildcards[1] ~= "" then
+				amount = tonumber(wildcards[1])
+			end
+
+			potsAndScrolls:BuyBlank(Scroll:New(), amount)
+		end
+
+		function BuyVials(name, line, wildcards)
+			local amount = 50
+			if wildcards[1] ~= nil and wildcards[1] ~= "" then
+				amount = tonumber(wildcards[1])
+			end
+
+			potsAndScrolls:BuyBlank(Potion:New(), amount)
+		end		
+
+		------------------------
+		-- Utilities
+		------------------------	
+		function FindSpellAndCount(text)
+			for spell, spelling in pairs(consumable.spells) do				
+				local _, count = string.gsub(text, string.lower(spelling), "")
+				
+				if count > 0 then 					
+					return spell, count
+				end
+			end
+
+			return nil, nil
+		end
+
+		function ReportSession()
+			ColourTell("dimgray", "", " [",
+				"lime", "", tostring(sessionSuccess),
+				"dimgray", "", "|",
+				"red", "", tostring(sessionFail),
+				"dimgray", "", "]")
+		end
+
+		function Clear()
+			stats = stats:New()
+			stats:Save()		
+			
+			ColourNote("orange", "", "Stats cleared")
+		end
+		
+		function Show()		
+			ColourNote("orange", "", "---------------------------")
+			ColourNote("orange", "", "Settings")  
+			ColourNote("orange", "", "---------------------------")
+			ColourNote("orange", "", "Bag: ", "cyan", "", settings.bag)
+			ColourNote("orange", "", "On complete: ", "cyan", "", settings.completeCommand)
+
+			ColourNote("orange", "", "\n---------------------------")
+			ColourNote("orange", "", "Brew Spell Counts")  
+			ColourNote("orange", "", "---------------------------")
+			ColourNote("orange", "", "Incomplete Healing: ", "cyan", "", tostring(settings.inc.brew))
+
+			ColourNote("orange", "", "\n---------------------------")
+			ColourNote("orange", "", "Scribe Spell Counts")  
+			ColourNote("orange", "", "---------------------------")
+			ColourNote("orange", "", "Incomplete Healing: ", "cyan", "", tostring(settings.inc.scribe))
+			ColourNote("orange", "", "Curse: ", "cyan", "", tostring(settings.cur.scribe))
+			ColourNote("orange", "", "Reverse Align: ", "cyan", "", tostring(settings.rev.scribe))
+			ColourNote("orange", "", "Party Heal: ", "cyan", "", tostring(settings.ph.scribe))
+
+			ColourNote("orange", "", "\n---------------------------")
+			ColourNote("orange", "", "Spells  Success  Fail  Rate")  
+			ColourNote("orange", "", "---------------------------")
+			for i = 1, 4 do
+				ColourNote("orange", "", string.sub(i .. "       ", 1, 6) .. "  ",
+					"lime", "", string.sub(stats[i].success .. "      ", 1, 7) .. "  ",
+					"red", "", string.sub(stats[i].fail .. "   ", 1, 4) .. "  ",
+					"cyan", "", string.format("%.1f", stats[i].success/(stats[i].success + stats[i].fail) * 100.0))
+			end		
+
+			ColourNote("orange", "", "\n----------------------------------")
+			ColourNote("orange", "", "Potions             1x  2x  3x  4x")  
+			ColourNote("orange", "", "----------------------------------")
+			if potsAndScrolls.inventory.potion ~= nil then
+				for spell, counts in pairs(potsAndScrolls.inventory.potion) do
+					ColourTell("orange", "", string.format("%-20s", consumable.spells[spell]))
+					ColourTell("cyan", "", string.format("%-4s", counts[1] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[2] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[3] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[4] or 0))				
+					ColourNote("orange", "", "")
+				end	
+			end	
+
+			ColourNote("orange", "", "\n----------------------------------")
+			ColourNote("orange", "", "Scrolls             1x  2x  3x  4x")  
+			ColourNote("orange", "", "----------------------------------")
+			if potsAndScrolls.inventory.scroll ~= nil then
+				for spell, counts in pairs(potsAndScrolls.inventory.scroll) do			
+					ColourTell("orange", "", string.format("%-20s", consumable.spells[spell]))
+					ColourTell("cyan", "", string.format("%-4s", counts[1] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[2] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[3] or 0))
+					ColourTell("cyan", "", string.format("%-4s", counts[4] or 0))				
+					ColourNote("orange", "", "")
+				end
+			end			
+		end	
+		
+		function spairs(t, order)
+			-- collect the keys
+			local keys = {}
+			for k in pairs(t) do keys[#keys+1] = k end
+
+			-- if order function given, sort by it by passing the table and keys a, b,
+			-- otherwise just sort the keys 
+			if order then
+				table.sort(keys, function(a,b) return order(t, a, b) end)
+			else
+				table.sort(keys)
+			end
+
+			-- return the iterator function
+			local i = 0
+			return function()
+				i = i + 1
+				if keys[i] then
+					return keys[i], t[keys[i]]
+				end
+			end
+		end	
+	]]>
+	</script>
+</muclient>

@@ -1,0 +1,405 @@
+<muclient>
+	<plugin
+		name="Nok3_Who_PK"
+		author="Nokfah"
+		id="a5b514c09af80a5093cabbfd"
+		language="Lua"
+		purpose="Shows all PKable players"	
+		save_state="y"		
+	>
+	<description trim="n">
+		<![CDATA[
+==================== Who PK Help ====================
+		wp   -- shows all pkable players
+		wop  -- shows opk players in range
+		hc   -- shows hardcore players
+
+		wg   -- shows who is in grouping range
+		]]>
+	</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>	
+		
+	<aliases>
+		<alias
+		    name="who_pk"			
+			script="Start"
+			enabled="y"
+			match="^(wp)$"			
+			regexp="y"			
+		></alias>	
+
+		<alias
+		    name="who_opk"			
+			script="Start"
+			enabled="y"
+			match="^(wop)$"			
+			regexp="y"			
+		></alias>
+
+		<alias
+		    name="who_hardcore"			
+			script="Start"
+			enabled="y"
+			match="^(hc)$"			
+			regexp="y"			
+		></alias>
+
+		<alias
+			name="who_group"			
+			script="who_group"
+			enabled="y"
+			match="^wg$"			
+			regexp="y"			
+		></alias>
+
+		<alias
+			name="all_kills"			
+			script="all_kills"
+			enabled="y"
+			match="^allkills$"			
+			regexp="y"			
+		></alias>
+	</aliases>	
+		
+	<triggers>										
+		<trigger
+			name="capture_pagesize"
+			script="capture_pagesize"
+			enabled="y"
+			sequence="100"
+		    match="^You currently display (\d+) lines per page\.$"
+		    regexp="y"
+		></trigger>		
+		
+		<trigger
+			name="capture_pagesize_zero"
+			script="capture_pagesize_zero"
+			enabled="y"
+			sequence="100"
+		    match="^You do not page long messages\.$"
+		    regexp="y"
+		></trigger>		
+		
+		<trigger name="end_who_wanted" script="end_who_wanted"			
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" sequence="100" keep_evaluating="y"
+		></trigger>
+		
+		<trigger name="end_who_range" script="end_who_range"			
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" sequence="100" keep_evaluating="y"
+		></trigger>
+		
+		<trigger name="end_who_opk" script="end_who_opk"			
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" sequence="100" keep_evaluating="y"
+		></trigger>
+
+		<trigger name="end_who_hardcore" script="end_who_hardcore"			
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" sequence="100" keep_evaluating="y"
+		></trigger>		
+
+		<trigger name="end_all_kills" script="end_all_kills"			
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" sequence="100" keep_evaluating="y"
+		></trigger>
+		
+		
+		<!-- gags -->
+		<trigger 
+			name="gag_not_questing"			
+			enabled="n"
+			sequence="200"
+			match="^((?!\[Q\]).)*$"
+			omit_from_output="y"
+			regexp="y"
+		></trigger>
+
+		<trigger name="gag_online"
+			match="                       Who list sorted by : .*"
+			regexp="y" enabled="n" omit_from_output="y"
+		></trigger>
+		
+		<trigger name="gag_player_found"
+			match="^Players found: \[[0-9]+\], Max this reboot: \[[0-9]+\], Connections this reboot: \[[0-9]+\]$"
+			regexp="y" enabled="n" omit_from_output="y"
+		></trigger>
+		
+		<trigger name="gag_player_invis"
+			match="^Players invis: \[[0-9]+\], Max on ever: \[[0-9]+\]$"
+			regexp="y" enabled="n" omit_from_output="y" sequence="200"
+		></trigger>
+		
+		<trigger name="gag_blanks"
+			match="^$"
+			regexp="y" enabled="n" omit_from_output="y" sequence="300"
+		></trigger>
+
+		<trigger name="capture_kills" script="CaptureKills"
+			match="^\[.{15}\] \[\s*([0-9]+)\s*\](.*)"
+			regexp="y" enabled="n" omit_from_output="y" sequence="100"
+		></trigger>
+	</triggers>
+						
+	<script>
+	<![CDATA[	
+		require "serialize"
+
+		local myLevel = 1		
+		local pagesize = 0
+
+		local kills = {}
+
+		local funcQueue = {}
+		
+		local aliasMap = {}
+		
+		function OnPluginInstall()					
+			show_help()
+
+			aliasMap = {
+				wp = { who_range, who_wanted, who_hardcore, who_opk },
+				wop = { who_opk }, 
+				hc = { who_hardcore }
+			}
+		end
+		
+		function show_help()
+			ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+		end
+		
+		function capture_pagesize(line, name, wildcards)
+			pagesize = tonumber(wildcards[1])		
+	    end
+		
+		function capture_pagesize_zero()
+			pagesize = 0		
+	    end
+		
+		function who_group()
+			res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+			luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+			assert (loadstring (luastmt or "")) ()	
+			
+			if (gmcpdata ~= nil) then				
+				myLevel = tonumber(gmcpdata.level)
+				SendNoEcho("swho 2 " .. myLevel-15 .. " " .. myLevel+15)
+			end
+		end
+		
+		function get_level()
+			res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+			luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+			assert (loadstring (luastmt or "")) ()	
+			
+			if (gmcpdata ~= nil) then				
+				myLevel = tonumber(gmcpdata.level)
+			else
+				ColourNote("red", "", "Could not get level from GMCP")			
+			end
+		end
+
+		function Start(name, line, wildcards)
+			EnableTrigger("gag_online", true)															
+			EnableTrigger("gag_player_found", true)	
+			EnableTrigger("gag_player_invis", true)		
+			EnableTrigger("gag_blanks", true)
+
+			--SendNoEcho("pagesize")
+			--SendNoEcho("pagesize 0")		
+			--SendNoEcho("prompt")
+			
+			for i, func in ipairs(aliasMap[wildcards[1]]) do				
+				table.insert(funcQueue, func)					
+			end			
+
+			ExecuteQueue();
+		end
+
+		function End()
+			EnableTrigger("gag_online", false)															
+			EnableTrigger("gag_player_found", false)	
+			EnableTrigger("gag_player_invis", false)		
+			EnableTrigger("gag_blanks", false)
+
+			--SendNoEcho("pagesize")
+			--SendNoEcho("pagesize 0")		
+			--SendNoEcho("prompt")
+		end
+
+		function ExecuteQueue()			
+			nextFunc = table.remove(funcQueue, 1)
+			if nextFunc ~= nil then				
+				nextFunc()
+			else				
+				End()
+			end
+		end
+
+		
+		function who_range()
+			EnableTrigger("end_who_range", true)
+
+			get_level()
+
+			if myLevel ~= 201 then
+				DisplayTitle("REGULAR PK")
+				SendNoEcho("swho 12 " .. myLevel-10 .. " " .. myLevel+20 .. " pk")
+			else
+				DisplayTitle("QUESTING")
+				EnableTrigger("gag_not_questing", true)
+				SendNoEcho("swho 12 200 201")
+			end		
+		end
+
+		function end_who_range()
+			EnableTrigger("end_who_range", false)
+			EnableTrigger("gag_not_questing", false)
+
+			ExecuteQueue()
+		end
+		
+
+		function who_wanted()
+			EnableTrigger("end_who_wanted", true)	
+			DisplayTitle("WANTED")
+			SendNoEcho("swho 12 wanted")
+		end
+
+		function end_who_wanted()			
+			EnableTrigger("end_who_wanted", false)	
+
+			ExecuteQueue()							
+		end
+		
+
+		function who_hardcore()
+			EnableTrigger("end_who_hardcore", true)
+			EnableTrigger("capture_kills", true)
+			DisplayTitle("HARDCORE")
+			SendNoEcho("swho 6 hardcore")		
+		end
+
+		function end_who_hardcore()						
+			EnableTrigger("end_who_hardcore", false)	
+			EnableTrigger("capture_kills", false)
+
+			ExecuteQueue()							
+		end	
+
+
+		function who_opk()
+			EnableTrigger("capture_kills", true)
+			EnableTrigger("end_who_opk", true)
+			get_level()
+
+			DisplayTitle("OPK")
+			if myLevel ~= 201 then				
+				SendNoEcho("swho 6 " .. myLevel-10 .. " " .. myLevel+20 .. " opk")
+			else				
+				SendNoEcho("swho 6 200 201 opk")
+			end
+		end	
+
+		function end_who_opk()
+			EnableTrigger("capture_kills", false)
+			EnableTrigger("end_who_opk", false)
+
+			ExecuteQueue()
+		end
+
+		function all_kills()
+			EnableTrigger("end_all_kills", true)
+			EnableTrigger("capture_kills", true)
+			DisplayTitle("ALL KILLS")
+			SendNoEcho("swho 6")
+		end
+
+		function end_all_kills()
+			EnableTrigger("end_all_kills", false)	
+			EnableTrigger("capture_kills", false)	
+
+			for name, info in pairs(kills) do
+				Note("player: " .. name .. " clan: " .. info.clan)
+			end
+		end
+
+		function DisplayTitle(title)
+			ColourNote("orange", "", "----------------------------------------------------")
+			ColourNote("cyan", "", "| " .. title)
+			ColourNote("orange", "", "----------------------------------------------------")
+		end
+
+		function CaptureKills(name, line, wildcards, styles)	
+			local newKills = tonumber(wildcards[1])
+			local scrubbedLine = ScrubLine(wildcards[2])
+			local space = string.find(scrubbedLine, " ")
+
+			local player = scrubbedLine
+			local clan = "none"			
+			if space ~= nil then
+				player = string.sub(scrubbedLine, 1, space - 1)
+				clan = 	string.sub(scrubbedLine, space + 1, -1)						
+			end						
+
+			local oldKills = 0
+			if kills[player] ~= nil then oldKills = kills[player].kills end
+			local killDiff = newKills - oldKills		
+
+			local bracketCount = 0
+			local nextIsKills = false
+			for i, style in ipairs(styles) do
+				if string.find(style.text, "%[") ~= nil then
+					bracketCount = bracketCount + 1					
+				end
+
+				if nextIsKills then
+					local killColor = "lightgray"					
+					if killDiff > 0 then
+						killColor = "red"
+					end
+
+					ColourTell(
+						killColor, "", string.format("%7s", wildcards[1]),
+						"lightgray", "", " (",
+						killColor, "", tostring(killDiff),
+						"lightgray", "", ") "
+					)					
+					
+					nextIsKills = false
+					bracketCount = bracketCount + 1
+				else
+					ColourTell(RGBColourToName(style.textcolour), "", style.text)
+				end
+
+				if bracketCount == 2 then
+					nextIsKills = true
+				end
+			end	
+
+			kills[player] = { clan = clan, kills = newKills }
+		end
+
+		function ScrubLine(line)
+			return line
+				:gsub("%[C%]", "")
+				:gsub("%[Q%]", "")
+				:gsub("%(Linkdead%)", "")
+				:gsub("%(HARDCORE%)", "")
+				:gsub("%(OPK%)", "")				
+				:gsub("%(WANTED%)", "")
+				:gsub("%(TRAITOR%)", "")
+				:gsub("%(Note%)", "")
+				:gsub("%(DUEL%)", "")
+				:gsub("%[Advisor%]", "")
+				:gsub("%[Helper%]", "")
+				:gsub("%*AFK%*", "")
+				:gsub("^%s*(.-)%s*$", "%1")
+		end
+	]]>
+	</script>
+</muclient>

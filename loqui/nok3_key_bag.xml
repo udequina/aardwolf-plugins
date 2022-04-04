@@ -1,0 +1,396 @@
+<muclient>
+	<plugin
+		name="Nok3_Key_Bag"
+		author="Nokfah"
+		id="d7b514d19df89a4093baedfa"
+		language="Lua"
+		purpose="Managing keys and a key bag"	
+		save_state="y"		
+	>
+	<description trim="n">
+		<![CDATA[
+==================== Key Bag Help ====================
+kb                               -- shows all bags and keys
+
+kb bag <id> <name>               -- creates a bag using the id and gives the bag a name
+kb clearbags                     -- clears all bags
+kb removebag <name>              -- removes bag based on name
+
+kb <bag name> <key name>         -- assigns a key to a bag							 
+kb clearkeys                     -- clears all keys
+kb removekey <id>                -- removes key based on id
+
+kb putkeys <bag>(optional)       -- puts all keys into their bags
+                                 -- optional argument limits to a single bag
+kb getkeys <bag>(optional)       -- gets all keys from their bags
+                                 -- optional argument limits to a single bag
+
+kb drop <bag>(optional)          -- puts all the keys in their bags, unkeeps, drops the bags
+                                 -- optional argument limits to a single bag
+kb get <bag>(optional)           -- gets the bags from the ground, keeps the bags, gets all the keys
+                                 -- optional argument limits to a single bag			
+		]]>
+	</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>			
+		
+	<aliases>		
+		<alias name="help"
+			enabled="y" script="show_help"
+			regexp="y" match="^kb help$"	
+			sequence="100"
+		>		
+		</alias>
+	
+		<alias name="show"			
+			script="Show" enabled="y"
+			regexp="y" match="^kb$"	
+			sequence="100"			
+		>
+		</alias>
+		
+		<!-- Bags -->
+		<alias name="add_bag"			
+			script="AddBag" enabled="y"			
+			regexp="y" match="^kb bag ([0-9]+) ([\w\d]+)$"	
+			sequence="100"					
+		>
+		</alias>
+		
+		<alias name="clear_bags"			
+			script="ClearBags" enabled="y"			
+			regexp="y" match="^kb clearbags$"	
+			sequence="100"					
+		>
+		</alias>
+		
+		<alias name="remove_bag"			
+			script="RemoveBag" enabled="y"			
+			regexp="y" match="^kb removebag ([\w\d]+)$"	
+			sequence="100"					
+		>
+		</alias>
+		
+		<!-- Keys -->
+		<alias name="add_key"	
+		    script="AddKey" enabled="y"			
+			regexp="y" match="^kb (?<bag>[\w\d]+) (?<key>.*)$"	
+			sequence="200"			
+		>
+		</alias>	
+		
+		<alias name="clear_keys"			
+			script="ClearKeys" enabled="y"
+			regexp="y" match="^kb clearkeys$"	
+			sequence="100"
+		>
+		</alias>
+		
+		<alias name="remove_key"			
+			enabled="y" script="RemoveKey"			
+			regexp="y"	match="^kb removekey ([0-9]+)$"	
+			sequence="100"					
+		>
+		</alias>	
+		
+		<alias name="get_keys"			
+			script="GetKeys" enabled="y"			
+			match="^kb getkeys( (?<bag>[\w\d]+))?$"	
+			sequence="100"
+			regexp="y"			
+		>
+		</alias>
+		
+		<alias name="put_keys"			
+			script="PutKeys" enabled="y"
+			regexp="y" match="^kb putkeys( (?<bag>[\w\d]+))?$"	
+			sequence="100"			
+		>
+		</alias>
+				
+		<alias name="drop_bag"			
+			script="DropBag" enabled="y"			
+			regexp="y" match="^kb drop( (?<bag>[\w\d]+))?$"	
+			sequence="100"					
+		>
+		</alias>
+		
+		<alias
+		    name="get_bag"			
+			script="GetBag" enabled="y"
+			regexp="y" match="^kb get( (?<bag>[\w\d]+))?$"	
+			sequence="100"			
+		>
+		</alias>
+	</aliases>	
+		
+	<triggers>								
+		<trigger
+			name="log_key_id"
+			script="LogKeyId"
+			group="key_data"
+			enabled="n"
+			sequence="100"
+		    match="^\| Id         : ([0-9]+)\s+\|$"	
+			keep_evaluating="y"
+		    regexp="y"
+		>
+		</trigger>	
+		
+		<trigger
+			name="log_key_name"
+			script="LogKeyName"
+			group="key_data"
+			enabled="n"
+			sequence="100"
+		    match="^\| Name       : (.*)\s+\|$"						
+		    regexp="y"
+		>
+		</trigger>	
+		
+		<trigger
+			name="log_key_level"
+			script="LogKeyLevel"
+			group="key_data"
+			enabled="n"
+			sequence="200"
+		    match="Level  :\s+([0-9]+)\s+\|$"						
+		    regexp="y"
+		>
+		</trigger>		
+	</triggers>
+				
+	<script>
+	<![CDATA[	
+		require "serialize"
+	
+		local keys = {}					
+		if (GetVariable("kb_keys") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("kb_keys")
+			assert (loadstring (luastmt or "")) ()		
+			keys = obj
+		end	
+		
+		local bags = {}					
+		if (GetVariable("kb_bags") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("kb_bags")
+			assert (loadstring (luastmt or "")) ()		
+			bags = obj
+		end
+			
+		
+		local key = {}
+		
+		function OnPluginInstall()					
+			show_help()
+		end
+		
+		function show_help()
+			ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+		end
+		
+		function AddBag(name, line, wildcards)
+			ColourNote("orange", "", "adding bag")
+			bags[wildcards[1]] = {
+				name = wildcards[2]				
+			}
+				
+			SaveBags()
+			ColourNote("orange", "", "Bag added: " .. wildcards[1] .. " - " .. wildcards[2])
+		end
+		
+		function SaveBags()
+			SetVariable("kb_bags", serialize.save_simple(bags))	
+		end
+		
+		function RemoveBag(name, line, wildcards)
+			local bag = FindBagByName(wildcards[1])
+			if (bag ~= "") then
+				bags[bag] = nil				
+				SaveBags()
+				ColourNote("orange", "", "Bag removed - " .. wildcards[1])
+			else
+				ColourNote("red", "", "ERROR: Bag not found - " .. wildcards[1])
+			end
+		end
+		
+		function ClearBags()
+			bags = {}
+			SaveBags()
+			ColourNote("orange", "", "All bags cleared")
+		end
+		
+		function FindBagByName(name)
+			for bag, info in pairs(bags) do
+				if (info.name == name) then return bag end
+			end
+			
+			return ""
+		end
+		
+		function AddKey(name, line, wildcards)
+			ColourNote("orange", "", "adding key: " .. wildcards.key .. " to: " .. wildcards.bag)
+			-- assign the bag if provided	
+			local bag = FindBagByName(wildcards.bag)
+			if (bag ~= "") then
+				key.bag = bag
+				ColourNote("orange", "", "bag: " .. wildcards.bag)				
+			end										
+					
+			EnableGroup("key_data", true)
+			SendNoEcho("identify " .. wildcards.key)			
+		end
+		
+		function LogKeyName(name, line, wildcards)						
+			key.name = wildcards[1]
+		end
+		
+		function LogKeyId(name, line, wildcards)
+			key.id = wildcards[1]			
+		end
+		
+		function LogKeyLevel(name, line, wildcards)
+			EnableGroup("key_data", false)
+			key.level = wildcards[1]			
+			SaveKey()
+		end
+		
+		function SaveKey()								
+			if (key.bag ~= nil and key.bag ~= "") then				
+				SendNoEcho("keep " .. key.id)
+				SendNoEcho("keyring put " .. key.id)
+				keys[key.id] = { name = key.name, level = key.level, bag = key.bag }				
+				SaveKeys()
+				ColourNote("orange", "", "Key added: " .. key.id .. " - " .. bags[key.bag].name .. " - " .. key.name)				
+			else
+				ColourNote("red", "", "ERROR: Could not assign to bag")
+			end	
+		end
+		
+		function SaveKeys()
+			SetVariable("kb_keys", serialize.save_simple(keys))	
+		end
+		
+		function RemoveKey(name, line, wildcards)
+			if (keys[wildcards[1]] ~= nil) then
+				keys[wildcards[1]] = nil				
+				SaveKeys()
+				ColourNote("orange", "", "Key removed - " .. wildcards[1])
+			else
+				ColourNote("red", "", "ERROR: Key not found - " .. wildcards[1])
+			end
+		end
+		
+		function ClearKeys()
+			keys = {}
+			SaveKeys()
+			ColourNote("orange", "", "All keys cleared")
+		end
+			
+		
+		function Show()			
+			ColourNote("orange", "", "Bags")
+			ColourNote("orange", "", "------------------------------")
+			ColourNote("orange", "", "Id           Name")  
+			ColourNote("orange", "", "------------------------------")
+			for bag, info in spairs(bags, function(t,a,b) return string.lower(t[a].name) < string.lower(t[b].name) end) do
+				ColourNote("orange", "", bag .. " : " .. info.name)
+			end
+		
+			ColourNote("orange", "", "")
+			ColourNote("orange", "", "Keys")
+			ColourNote("orange", "", "------------------------------")
+			ColourNote("orange", "", "Id           Bag   Lvl   Key")
+			ColourNote("orange", "", "------------------------------")
+			for key, info in spairs(keys, function(t,a,b) return string.lower(t[a].name) < string.lower(t[b].name) end) do
+				ColourNote("orange", "", key .. " : " .. bags[info.bag].name .. " : " .. string.sub("  " .. info.level, -3, -1) .. " : " .. info.name)
+			end
+		end
+		
+		function GetKeys(name, line, wildcards)			
+			local bag = ""
+			if (wildcards.bag ~= nil and wildcards.bag ~= "") then
+				bag = FindBagByName(wildcards.bag)
+			end
+		
+			for key, info in pairs(keys) do
+				if (bag == "" or info.bag == bag) then
+					SendNoEcho("get " .. key .. " " .. info.bag)
+					SendNoEcho("keyring put " .. key)
+				end
+			end	
+		end
+		
+		function PutKeys(name, line, wildcards)
+			local bag = ""
+			if (wildcards.bag ~= nil and wildcards.bag ~= "") then
+				bag = FindBagByName(wildcards.bag)
+			end
+		
+			for key, info in pairs(keys) do
+				if (bag == "" or info.bag == bag) then
+					SendNoEcho("keyring get " .. key)
+					SendNoEcho("put " .. key .. " " .. info.bag)
+				end
+			end
+		end
+		
+		function DropBag(name, line, wildcards)		
+			PutKeys(name, line, wildcards)
+		
+			local bagId = ""
+			if (wildcards.bag ~= nil and wildcards.bag ~= "") then
+				bagId = FindBagByName(wildcards.bag)
+			end
+		
+			for bag, info in pairs(bags) do
+				if (bagId == "" or bag == bagId) then
+					SendNoEcho("unkeep " .. bag)
+					SendNoEcho("drop " .. bag)
+				end
+			end
+		end
+		
+		function GetBag(name, line, wildcards)
+			local bagId = ""
+			if (wildcards.bag ~= nil and wildcards.bag ~= "") then
+				bagId = FindBagByName(wildcards.bag)
+			end
+		
+			for bag, info in pairs(bags) do
+				if (bagId == "" or bag == bagId) then
+					SendNoEcho("get " .. bag)
+					SendNoEcho("keep " .. bag)			
+				end				
+			end
+
+			GetKeys(name, line, wildcards)
+		end
+		
+		function spairs(t, order)
+			-- collect the keys
+			local keys = {}
+			for k in pairs(t) do keys[#keys+1] = k end
+
+			-- if order function given, sort by it by passing the table and keys a, b,
+			-- otherwise just sort the keys 
+			if order then
+				table.sort(keys, function(a,b) return order(t, a, b) end)
+			else
+				table.sort(keys)
+			end
+
+			-- return the iterator function
+			local i = 0
+			return function()
+				i = i + 1
+				if keys[i] then
+					return keys[i], t[keys[i]]
+				end
+			end
+		end	
+	]]>
+	</script>
+</muclient>

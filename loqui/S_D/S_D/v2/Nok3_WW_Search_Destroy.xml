@@ -1,0 +1,1271 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+<!-- Saved on Saturday, July 05, 2008, 4:46 PM -->
+<!-- MuClient version 4.31 -->
+
+<muclient>
+<plugin
+   name="Nok3_WW_Search_Destroy"
+   author="WinkleWinkle + Nokfah"
+   id="e50b1d08a0cfc0ee9c442001"
+   language="Lua"
+   purpose="Find mobs faster"
+   date_written="2011-05-12 16:46:02"
+   requires="4.76"
+   version="2"
+   save_state="y"
+   >
+<description trim="n">
+<![CDATA[
+
+SEARCH AND DESTROY USAGE:
+
+===== SHOW THIS HELP ===============>
+>   search help
+        - shows only this help
+>   ww help
+        - all winklewinkle(tm) plugins show help
+		
+===== HUNT TRICK ===============>
+>   ht citizen       
+        - will hunt all citizens upwards from 1.citizen
+>   ht 3 citizen     
+        - will hunt all citizens starting at 3.citizen
+>   ht abort         
+        - will abort a currently running hunt trick script
+>   ht
+        - Typing just this will hunt for the last mob you performed "ht" or 
+		"qw" for
+
+
+>   ht find 
+		- try and hunt the last mob you "couldn't hunt for some reason" to
+		confirm if it is in your current room or not
+		
+===== AUTO HUNT ================>
+>   ah citizen       
+        - will auto-hunt and move towards a mob until mob is found, you get 
+		in a fight, or you abort the auto-hunt
+>   ah 3.citizen     
+        - will auto-hunt 3.citizen
+>   ah abort         
+        - will abort a currently running auto hunt script
+>   1ah <mobname>
+		- will try to autohunt for just ONE room
+
+===== AWESOME KILL=================>
+>   ak  - Typing just this will attack the last mob you performed "ht" or "qw" 
+        for.  No more typos in scans!
+
+NOTE:  If you want a custom kill action.. make an alias that will trigger on 
+        k *
+       This will receive the ak's kill command
+
+Quick Scan
+===== QUICK SCAN ===============>
+>   qs               
+        - Typing just this will scan for the last mob you performed "ht" or 
+		"qw" for
+
+===== QUICK WHERE ==============>
+>   qw lich          
+        - This will return a room name and a speedwalk hyperlink to the room
+		the lich is in (may have multiple rooms in list)
+>   qw               
+        - Typing just this will "where" for the last mob you performed "ht" or 
+		"qw" for
+		
+]]>
+</description>
+</plugin>
+
+<aliases>
+
+	<alias match="^(?:ww|search) help$"
+		enabled="y"
+		sequence="100"
+		send_to="12"
+		regexp="y"
+		keep_evaluating="y"		
+	>
+	<send>
+		ColourNote("SteelBlue", "", GetPluginInfo (GetPluginID (), 3))
+	</send>
+	</alias>
+
+	<!-- debug -->
+
+	<alias
+		name="ali_toggle_debug"
+		match="^sd debug$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="sd_debug"
+	>
+	</alias>
+	
+	<!-- Quick Scan -->
+
+	<alias
+		name="QuickScan"
+		match="^qs$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="quick_scan"
+	>
+	</alias>
+	
+	<alias
+		name="QuickSurvey"
+		match="^qsur$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="quick_survey"
+	>
+	</alias>
+
+	<!-- Auto Hunt -->
+
+	<alias
+		name="AutoKill"
+		match="^a(?:uto)?k(?:ill)?( [0-9]+)?$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="auto_kill"
+	>
+	</alias>
+	
+	<alias
+		name="AutoKillAim"
+		match="^a(?:uto)?k(?:ill)?a$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="auto_kill_aim"
+	>
+	</alias>
+	
+	<alias
+		name="AutoHunt"
+		match="^ah (?<mob>.+)$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="auto_hunt_start"
+	>
+	</alias>
+
+	<alias
+		name="AutoHuntAbort"
+		script="auto_hunt_abort"
+		match="^ah a(?:bort)?$"
+		regexp="y"
+		enabled="y"
+		sequence="95"
+		keep_evaluating="n"
+	>
+	</alias>
+	
+	<alias
+		name="AutoHuntOnce"
+		match="^1ah (?<mob>.+)$"
+		regexp="y"
+		enabled="y"
+		sequence="100"
+		script="auto_hunt_once"
+	>
+	</alias>
+
+	<!-- Hunt Trick -->
+
+	<alias
+		name="HuntTrick"
+		match="^(?<exact>x_)?ht(?!tp) ?(?:(?<index>[0-9]+) )?(?:(?<mob>.+))?$"
+		regexp="y"
+		enabled="y"
+		group="HuntTrick"
+		sequence="100"
+		script="hunt_trick"
+	>
+	</alias>
+
+	<alias
+		name="HuntTrickAbort"
+		match="^ht a(?:bort)?$"
+		regexp="y"
+		enabled="y"
+		group="HuntTrick"
+		sequence="95"
+		keep_evaluating="n"
+		script="hunt_trick_abort"
+	>
+	</alias>
+
+	<!-- Quick where -->
+	<alias
+		name="QuickWhere"
+		match="^(?<exact>x_)?qw ?(?:(?<index>[0-9]+)\.)?(?<mob>.+)?$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="quick_where_start"
+	>
+	</alias>
+	
+	<!-- Where Trick -->
+	<alias
+		name="WhereTrick"
+		match="^wt (?<mob>.+)$"		
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="wt_start"
+	>
+	</alias>
+	
+	<alias
+		name="WhereTrickAbort"
+		match="^wt a$"		
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="wt_fail"
+	>
+	</alias>
+	
+	<alias
+		name="LoggerLookup"
+		match="^lm$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="logger_lookup"
+	>
+	</alias>		
+
+	<!-- Page Size -->
+	<alias
+		match="^xset suspend page size$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="suspend_page_size"
+	>
+	</alias>
+
+	<alias
+		match="^xset resume page size$"
+		enabled="y"
+		regexp="y"
+		sequence="100"
+		ignore_case="y"
+		script="resume_page_size"
+	>
+	</alias>
+	
+</aliases>
+
+
+<triggers>
+
+
+<!-- You couldn\'t find a path to .+ from here\. -->
+<!-- You have no idea what you\'re doing\, but maybe .+ left .+\? -->
+<!-- There are traces of .+ having been here. Perhaps they lead .+\? -->
+<!-- The trail of .+ is confusing, but you're reasonably sure .+ headed .+\. -->
+<!-- You are confident that .+ passed through here, heading .+\. -->
+<!-- You are almost certain that .+ is .+ from here\. -->
+<!-- You are certain that .+ is .+ from here\. -->
+<!-- .+ is here\! -->
+
+	<trigger
+		enabled="n"
+		group="HuntTrick"
+		match="^You are certain that .+ is .+ from here\.|You are almost certain that .+ is .+ from here\.|You are confident that .+ passed through here, heading .+\.|The trail of .+ is confusing, but you're reasonably sure .+ headed .+\.|There are traces of .+ having been here. Perhaps they lead .+\?|You have no idea what you\'re doing\, but maybe .+ is .+\?|You couldn\'t find a path to .+ from here\.|.+ is here\!$"
+		regexp="y"
+		sequence="100"
+		script="hunt_trick_continue"
+	>
+	</trigger>
+
+	<trigger
+		enabled="n"
+		group="HuntTrick"
+		match="^You seem unable to hunt that target for some reason\.$"
+		regexp="y"
+		sequence="100"
+		script="hunt_trick_complete"
+	>
+	</trigger>
+
+	<trigger
+		enabled="n"
+		group="HuntTrick"
+		match="^No one in this area by that name\.|There is no .+ around here\.|Not while you are fighting\!$"
+		regexp="y"
+		send_to="12"
+		sequence="100"
+		script="hunt_trick_abort"
+		keep_evaluating="y"
+	>
+	</trigger>
+
+	<!--  AUTO HUNT -->
+
+	<trigger
+		name="AutoHunt1"
+		group="AutoHunt"
+		script="auto_hunt"
+		enabled="n"
+		match="^You are (?<confidence>certain) that (?<mob>.+) is (?<dir>.+) from here\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+	<trigger
+		name="AutoHunt2"
+		group="AutoHunt"
+		script="auto_hunt"
+		enabled="n"
+		match="^You are (?<confidence>almost) certain that (?<mob>.+) is (?<dir>.+) from here\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+	<trigger
+		name="AutoHunt3"
+		group="AutoHunt"
+		script="auto_hunt"
+		enabled="n"
+		match="You are (?<confidence>confident) that (?<mob>.+) passed through here\, heading (?<dir>.+)\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+
+ 	<trigger
+		name="AutoHunt4"
+		group="AutoHunt"
+		script="auto_hunt"
+		enabled="n"
+		match="^The trail of (?<mob>.+) is confusing. but you.re (?<confidence>reasonably sure) .+ headed (?<dir>.+)\.$"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+ 	
+	<trigger
+		name="AutoHuntEnd"
+		group="AutoHunt"
+		enabled="n"
+		match="^You couldn\'t find a path to .+ from here\.|.+ is here\!|Not while you are fighting\!$"
+		regexp="y"
+		sequence="100"
+		send_to="12"
+	>
+	<send>
+		EnableTriggerGroup("AutoHunt", false)
+	</send>
+	</trigger>
+	
+	<!-- page size -->
+	
+	<trigger
+		match="^You currently display ([0-9]+) lines per page\.|You do not page long messages\.$"
+		name="trg_page_size"
+		enabled="n"
+		regexp="y"
+		sequence="100"
+		script="capture_page_size"
+		omit_from_output = "n"
+		keep_evaluating="y"		
+	>
+	</trigger>
+	
+	<!-- where trick -->
+	
+	<trigger
+		match="^There is no [0-9]+\..+ around here\.$"
+		name="trg_wt_fail"
+		group="where_trick"
+		enabled="n"
+		regexp="y"
+		sequence="100"
+		script="wt_fail"
+	>
+	</trigger>
+	
+	<trigger
+		match="^(?<mob>.{30}) (?<room>[A-Z].+)$"
+		name="trg_wt_continue"
+		group="where_trick"
+		enabled="n"
+		regexp="y"
+		sequence="100"
+		script="wt_continue"
+	>
+	</trigger>		
+</triggers>
+
+<!--  Get our standard constants -->
+<include name="constants.lua"/>
+
+<script>
+<![CDATA[
+
+	require "gmcphelper"
+	require "tprint"
+	require "serialize"
+
+	local mapper_extender_id = "b6eae87ccedd84f510b74715"
+	local mob_logger_id = "c5b534a09df80b4093cabbfd"
+
+	local showDebug = 0
+
+	local HuntFoundIndex = 1
+
+	local whereTrickFullMob = ""
+	local whereTrickMob = ""
+	local whereTrickIndex = 0
+	local whereTrickNextMob = ""
+	local whereTrickNextIndex = 0
+
+	local autoHuntData
+	local dir_map = { north = "n", south = "s", east = "e", west = "w", up = "u", down = "d" }	
+	local autoHuntMob = ""
+	local hunt_once = false
+
+	local questSignature = ""
+	
+	local currentRoom	
+	
+	local short_mob_name = ""
+	local full_mob_name = ""
+	local mob_keyword = ""
+	local is_exact = 0
+
+	function set_short_mob_name(mobName, callingId)
+	
+		if (callingId == nil) then
+			callingId = ""
+		else
+			callingId = callingId .. ":"
+		end
+	
+		DebugNote("set_short_mob_name:" .. tostring(callingId) .. "," .. tostring(mobName))
+		short_mob_name = mobName
+	end
+	function get_short_mob_name()	
+		DebugNote("get_short_mob_name:" .. tostring(short_mob_name))
+		return short_mob_name
+	end
+
+	function set_mob_keyword(keyword, callingId)
+		if (callingId == nil) then
+			callingId = ""
+		else
+			callingId = callingId .. ":"
+		end
+	
+		DebugNote("set_mob_keyword:" .. tostring(callingId) .. "," .. tostring(mob_keyword))
+		mob_keyword = keyword		
+	end
+	function get_mob_keyword()	
+		DebugNote("get_mob_keyword:" .. tostring(mob_keyword))
+		return mob_keyword
+	end
+	
+	function set_full_mob_name(mobName, callingId)
+	
+		if (callingId == nil) then
+			callingId = ""
+		else
+			callingId = callingId .. ":"
+		end
+	
+		DebugNote("set_full_mob_name:" .. tostring(callingId) .. "," .. tostring(mobName))
+		full_mob_name = mobName
+	end
+	function get_full_mob_name()	
+		DebugNote("get_full_mob_name:" .. tostring(full_mob_name))
+		return full_mob_name
+	end	
+	
+	function set_is_exact(isExact, callingId)
+	
+		if (callingId == nil) then
+			callingId = ""
+		else
+			callingId = callingId .. ":"
+		end
+	
+		DebugNote("set_is_exact:" .. callingId .. isExact)
+		is_exact = isExact
+	end
+	function get_is_exact()	
+		DebugNote("get_is_exact:" .. is_exact)
+		return is_exact
+	end	
+	
+	function keyword_lookup(mob, area)		
+		local keyword = ""
+		if (IsPluginInstalled(mob_logger_id)) then
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\loot.db")			
+
+			local dbMobName = string.gsub(mob, "\'", "")		
+							
+			local searchArea = ""
+			if (area == nil or area == "") then
+				if (currentRoom ~= nil) then searchArea = (currentRoom.zone or "") end
+			else
+				searchArea = area
+			end
+			
+			local mobSelect = "SELECT m.MobId, m.Keyword FROM Mob as m" ..
+					   " INNER JOIN MobLocation ml ON m.MobId = ml.MobId" ..
+					   " WHERE m.Name like \'" .. dbMobName .. "\'" ..
+					   " AND ml.Area = \'" .. searchArea .. "\'"						
+			
+			for mobId, mobKeyword in lootDB:urows(mobSelect) do 							
+				keyword = mobKeyword
+			end						
+			lootDB:close()								
+		end	
+		
+		return keyword
+	end
+	
+	function OnPluginBroadcast(msg, id, name, text)
+		--DebugNote("OnPluginBroadcast - " .. text .. ":" .. id .. ":" .. msg .. ":" .. name)
+		
+		-- Look for GMCP handler.
+		if (text == "room.info") then
+
+			res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264", "gmcpval", "room.info")
+			--Note(gmcparg)
+			luastmt = "room = " .. gmcparg
+			assert (loadstring (luastmt or "")) ()		
+
+			if (room ~= nil) then
+				currentRoom = room
+				--Note(currentRoom.zone)
+			else
+				currentRoom = nil
+			end
+		
+		elseif (text == "comm.quest") then
+
+			res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264", "gmcpval", "comm")
+			luastmt = "gmcpdata = " .. gmcparg
+			assert (loadstring (luastmt or "")) ()
+			local action = gmcpval("quest.action")
+			local mob = gmcpval("quest.targ")
+			local room = gmcpval("quest.room")
+			
+			if (action == "start" or (action == "status" and gmcpval("quest.timer") ~= "")) then
+				local cleanRoom = string.gsub(room, "@[a-zA-Z]", "") -- clean out color codes
+				local area = gmcpval("quest.area")
+				local newSignature = cleanRoom .. "|" .. area
+				if (questSignature ~= newSignature) then
+					questSignature = newSignature					
+
+					if (IsPluginInstalled(mapper_extender_id) and GetPluginInfo(mapper_extender_id, 17)) then
+						DebugNote("xmapper area used")
+						Execute("xxm {" .. mob .. "} " .. newSignature)
+					else
+						DebugNote("mapper list used")
+						Execute("mapper list " .. room)
+					end
+
+					-- broadcast short mob name
+					set_full_mob_name(mob, "comm.quest")					
+					set_mob_keyword(keyword_lookup(mob), "comm.quest")
+					set_short_mob_name(guess_mob_name(mob), "comm.quest")
+					set_is_exact(1, "comm.quest")
+				end
+			elseif (action == "status" and gmcpval("quest.wait") ~= "") then
+				questSignature = ""
+			end
+		end
+		
+	end
+
+	
+	function quick_scan(name, line, wildcards)
+	
+		DebugNote("quick_scan:" .. get_short_mob_name())		
+	
+		if (get_short_mob_name() == nil or get_short_mob_name() == "") then
+			Send("scan")
+		elseif (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then
+			Send(string.format("scan %s", get_mob_keyword()))
+		else
+			Send(string.format("scan %s", get_short_mob_name()))
+		end
+	end
+	
+	function quick_survey(name, line, wildcards)
+	
+		DebugNote("quick_scan:" .. get_short_mob_name())		
+	
+		if (get_short_mob_name() == nil or get_short_mob_name() == "") then
+			Send("survey")
+		elseif (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then
+			Send(string.format("survey %s", get_mob_keyword()))
+		else
+			Send(string.format("survey %s", get_short_mob_name()))
+		end
+	end
+
+	function auto_kill(name, line, wildcards)
+		if (get_short_mob_name() == nil or get_short_mob_name() == "") then
+			ColourNote("darkorange", "", "I don't know which mob to try and kill?")
+		else			
+			local mob = get_short_mob_name()
+			if (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then mob = get_mob_keyword() end
+			
+			if (wildcards[1] ~= "") then
+				mob = wildcards[1] .. "." .. mob
+			end			
+			Execute("k " .. mob)
+		end
+	end
+	
+	function auto_kill_aim()
+		if (get_short_mob_name() == nil or get_short_mob_name() == "") then
+			ColourNote("darkorange", "", "I don't know which mob to try and kill?")
+		else			
+			local mob = get_short_mob_name()
+			if (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then mob = get_mob_keyword() end
+					
+			Execute("aim \'" .. mob .. "\'")
+		end
+	end
+
+	local qw = {
+			full_name = "",
+			short_name = "",
+			keyword = "",
+			result_match_name = "",			
+			exact = 1,
+			index = 1
+		}
+	
+	function logger_lookup(name, line, wildcards)
+		local cmd = "lmh %" .. string.gsub(get_short_mob_name(), " ", "%%") .. "%"
+		ColourNote("Orange", "Black", cmd)
+		Execute(cmd)
+	end
+	
+	function quick_where_start(name, line, wildcards)				
+		if (wildcards.mob == "") then
+		
+			Note("Using last quickwhere mob...")
+			qw.full_name = get_full_mob_name()
+			qw.result_match_name = get_full_mob_name()
+			qw.short_name = get_short_mob_name()		
+			qw.keyword = get_mob_keyword()			
+
+			if (qw.full_name == nil or qw.full_name == "") then
+				ColourNote("DarkOrange", "", "I don't know your mob name :(")
+				return
+			end
+			
+			qw.exact = get_is_exact()
+			qw.index = 1
+		else
+			qw.full_name = wildcards.mob
+			qw.result_match_name = wildcards.mob
+			qw.short_name = wildcards.mob
+			qw.keyword = ""
+
+			-- set exact
+			if (wildcards.exact ~= "") then
+				qw.exact = 1
+			else
+				qw.exact = 0
+			end
+
+			-- set index
+			if (wildcards.index == "") then
+				qw.index = 1
+			else
+				qw.index = tonumber(wildcards.index)
+			end
+
+		end
+		
+		-- set exact
+		if (qw.exact == 1) then
+			qw.short_name = guess_mob_name(qw.full_name)
+		else
+			qw.result_match_name = split(guess_mob_name(qw.full_name), "[^ ]+")[1]
+		end
+		-- limit to 30 chars
+		qw.result_match_name = string.sub(qw.result_match_name, 1, 30)
+			
+		set_full_mob_name(qw.full_name, "quick_where_start")
+		set_short_mob_name(qw.short_name, "quick_where_start")			
+		set_is_exact(qw.exact, "quick_where_start")
+		DebugNote("qw data - " .. serialize.save_simple(qw))
+			
+		create_quick_where_trigger(qw.result_match_name)			
+		
+		-- Check mob database for keyword for shortname
+		qw.keyword = keyword_lookup(get_full_mob_name())
+		set_mob_keyword(qw.keyword, "quick_where_start")
+		
+		local whereName = qw.short_name
+		if (qw.keyword ~= nil and qw.keyword ~= "") then 
+			whereName = qw.keyword
+			ColourNote("orange", "", "Using keyword: " .. qw.keyword)			
+		end
+		
+		Execute(string.format("where %s.%s", qw.index, whereName))
+	end
+	
+	function create_quick_where_trigger(mobName)
+		DeleteTrigger("QuickWhereTrigger")
+		
+		--local match = string.format("(?=.*%s.*)^(?<mob>.{30}) (?<room>.+)$", string.sub(mobName, 1, 30))
+		local match = "^(?<mob>.{30}) (?<room>.+)$"
+		
+		DebugNote(match)
+		
+		AddTriggerEx(
+			"QuickWhereTrigger", 
+			match, 
+			"", 
+			eEnabled + eKeepEvaluating+ eIgnoreCase + eTriggerRegularExpression + eReplace + eTemporary, 
+			-1, 
+			0, 
+			"", 
+			"quick_where_match", 
+			12, 
+			20)	
+	end
+
+	function quick_where_match(name, line, wildcards)
+	
+		DebugNote(name .. ": " .. serialize.save_simple(wildcards))
+
+		if (string.find(line, "There is no", 1, true) ~= nil) then
+			DebugNote(" a 'There is no' line")
+			return
+		end
+		
+		local mobName = string.lower(trim(wildcards.mob))
+		local parts = split(string.lower(qw.short_name), "[^ ]+")
+		
+		local found = false
+		for index = 1, #parts do
+			DebugNote("Does '" .. mobName .. "' contain '" .. parts[index] .. "'")
+			if (string.find(mobName, parts[index], 1, true) ~= nil) then
+				DebugNote("    yes!")
+				found = true
+				break -- leave loop
+			else
+				DebugNote("    no.")
+			end
+		end
+		
+		if (found == false) then
+			-- not our line, keep looking
+			return
+		end
+
+		EnableTrigger("QuickWhereTrigger", false)
+		DeleteTrigger("QuickWhereTrigger")
+		
+		-- Does WinkleWinkle_Mapper_Extender plugin exist and is enabled?
+		if (IsPluginInstalled(mapper_extender_id) and 
+			GetPluginInfo(mapper_extender_id, 17)) then
+			DebugNote("qw_match:" .. qw.full_name)
+			local cmd = "xxm {" .. mobName .. "} " .. wildcards.room
+			DebugNote(cmd)
+			Execute(cmd)
+		else
+			Execute("mapper list " .. wildcards.room)
+		end
+	end
+
+	--------- Hunt Trick ------------
+	
+	local ht = {
+			full_name = "",
+			short_name = "",
+			keyword = "",
+			exact = 1,
+			index = 1
+		}
+
+	function hunt_trick(name, line, wildcards)		
+		-- TODO - make smart aborting - Execute("ah abort")
+		EnableTriggerGroup("AutoHunt", false)
+		EnableTriggerGroup("HuntTrick", true)
+
+		
+		local index
+		if (wildcards.mob == "") then
+			ht.exact = get_is_exact()
+			ht.full_name = get_full_mob_name()
+			ht.short_name = get_short_mob_name()
+			ht.keyword = get_mob_keyword()
+			
+			if (ht.full_name == nil or ht.full_name == "") then
+				ColourNote("DarkOrange", "", "I don't know your mob name :(")
+				return
+			end
+			
+			ht.index = 1
+		else
+		
+			if (wildcards.exact == "x_") then
+				ht.exact = 1
+			else
+				ht.exact = 0
+			end
+			set_is_exact(ht.exact, "hunt_trick")
+
+			if (wildcards.index == "") then
+				ht.index = 1
+			else
+				ht.index = tonumber(wildcards.index)
+			end
+			
+			ht.full_name = wildcards.mob
+			ht.short_name = wildcards.mob
+			ht.keyword = ""
+			
+			set_full_mob_name(ht.full_name, "hunt_trick")
+
+			if (ht.exact == 1) then
+				local guess = guess_mob_name(ht.full_name, true)
+				ht.short_name = guess		
+			end
+			set_short_mob_name(ht.short_name, "hunt_trick")	
+
+			-- keyword lookup
+			ht.keyword = keyword_lookup(ht.full_name)
+			set_mob_keyword(ht.keyword)
+		end			
+
+		DebugNote("ht data - " .. serialize.save_simple(ht))
+		
+		do_hunt_trick()
+	end
+
+ 	function hunt_trick_abort(name, line, wildcards)
+		EnableTriggerGroup("AutoHunt", false)
+		EnableTriggerGroup("HuntTrick", false)
+
+		ColourNote("darkorange", "", "Aborting Hunt Trick...")
+	end
+
+ 	function hunt_trick_continue(name, line, wildcards)		
+		DebugNote("hunt_trick_continue()")
+		ht.index = ht.index + 1
+				
+		if (ht.index > 0 and ht.short_name ~= "") then
+			do_hunt_trick()
+		end
+ 	end
+
+ 	function hunt_trick_complete(name, line, wildcards)
+		DebugNote("hunt_trick_complete:" .. ht.index .. "." .. ht.short_name .. ":" .. ht.exact)
+		
+		EnableTriggerGroup("AutoHunt", false)
+		EnableTriggerGroup("HuntTrick", false)
+		
+		if (ht.index > 0 and get_short_mob_name() ~= "") then
+			local exact = ""
+			local qw_name = get_short_mob_name()
+			
+			if (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then 
+				qw_name = get_mob_keyword() 
+			end
+			
+			if (ht.exact == 1) then
+				exact = "x_"
+				qw_name = get_full_mob_name()
+			end
+			
+			HuntFoundIndex = ht.index
+
+			Execute(string.format("%sqw %s.%s", exact, ht.index, qw_name))
+		end
+ 	end
+
+	function do_hunt_trick()
+	
+		DebugNote("do_hunt_trick:" .. ht.index .. ":" .. get_short_mob_name())
+	
+		if (ht.index > 0 and get_short_mob_name() ~= "") then
+			local mobName = get_short_mob_name()
+			if (get_mob_keyword() ~= nil and get_mob_keyword() ~= "") then 
+				mobName = get_mob_keyword() 
+			end		
+		
+			local hunt = string.format("hunt %s.%s", ht.index, mobName)
+
+			DebugNote("do_hunt_trick - hunt:" .. hunt)
+			DebugNote("x_ht command:" .. hunt)
+			Execute(hunt)
+		end
+	end
+
+	function IGuessMobNameBroadcast(mobName, areaId)		
+		DebugNote("IGuessMobNameBroadcast : " .. mobName .. "," .. areaId)
+		set_full_mob_name(mobName, "IGuessMobNameBroadcast")
+		
+		set_mob_keyword(keyword_lookup(mobName, areaId), "IGuessMobNameBroadcast")
+		local mobName, mobSub = guess_mob_name(mobName, true, areaId)		
+		
+		if (mobSub == nil) then
+			--set_short_mob_name(mobName, "IGuessMobNameBroadcast")
+			return mobName, nil
+		else
+			--set_short_mob_name(mobSub, "IGuessMobNameBroadcast")
+			return mobName, serialize.save_simple(mobSub)
+		end
+	end
+	function IGuessMobNameNoBroadcast(mobName, areaId)
+		set_full_mob_name(mobName, "IGuessMobNameNoBroadcast")
+	
+		set_mob_keyword(keyword_lookup(mobName, areaId), "IGuessMobNameNoBroadcast")
+		local mobName, mobSub = guess_mob_name(mobName, false, areaId)		
+		
+		if (mobSub == nil) then
+			return mobName, nil
+		else
+			return mobName, serialize.save_simple(mobSub)
+		end
+	end
+	
+	function guess_mob_name(mobName, broadcast, areaId)
+
+		local mob = mobName	
+		local local_room = room
+				
+		
+			local parts = split(mobName, "[^ ]+")
+
+			--detect if we have a name like "WinkleWinkle, the coder"
+			local comma = (string.find(parts[1], ",") or -1)			
+			DebugNote("isName:" .. #parts .. ":" .. comma .. ":" .. #(parts[1]))
+			
+			if ((#parts > 1) and (comma == #(parts[1]))) then
+				mob = string.gsub(parts[1], ",$", "")
+				DebugNote(mob)
+			else		
+
+				local clean2 = {}
+				local cleanIndex = 1
+			
+				--clean parts
+				for key, value in ipairs(parts) do													
+					local clean = string.gsub(value, "^[aA]n$", "")
+					clean = string.gsub(clean, "^[tT]he$", "")
+					clean = string.gsub(clean, "^[oO]f$", "")
+					clean = string.gsub(clean, "^[Ss]ome$", "")
+					
+					local singleLetters = { 
+						"aA", "bB", "cC", "dD", "eE", "fF", "gG", "hH", "iI", "jJ", "kK", "lL", "mM",
+						"nN", "oO", "pP", "qQ", "rR", "sS", "tT", "uU", "vV", "wW", "xX", "yY", "zZ"
+					}
+					
+					for i, letter in ipairs(singleLetters) do
+						clean = string.gsub(clean, "^[" .. letter .. "]$", "")
+					end
+					
+					-- area specific cleans
+					if (room ~= nil) then
+						if (currentRoom.zone == 'hatchling') then
+							clean = string.gsub(clean, "^[Ww]help$", "")
+							clean = string.gsub(clean, "^[Dd]ragon$", "")
+						elseif (currentRoom.zone == 'rangers') then
+							clean = string.gsub(clean, "^[Gg]host$", "")						
+						elseif (currentRoom.zone == 'verume') then
+							clean = string.gsub(clean, "^[Ll]izardman$", "")
+						elseif (currentRoom.zone == 'wooble') then
+							clean = string.gsub(clean, "^[Ss]ea$", "")						
+						elseif (currentRoom.zone == 'sohtwo') then
+							if (string.find(clean, "^[Ee]vil$") == 1 and #parts == 2) then
+								parts[2] = ""
+							end
+							if (string.find(clean, "^[Gg]ood$") == 1 and #parts == 2) then
+								parts[2] = ""
+							end
+						end
+					end
+					
+					clean = split(clean, "[a-zA-Z]+")
+		--			tprint(clean)
+
+					if (clean[1] ~= nil and clean[1] ~= "") then
+						clean2[cleanIndex] = clean[1]
+						cleanIndex = cleanIndex + 1
+					end
+				end
+		--		tprint(clean2)
+
+				if (#clean2 == 0) then
+					-- we over-guessed!  User entered "qw whelp" or something
+					mob = mobName
+				elseif (#clean2 == 1) then
+					mob = clean2[1]
+				else
+					-- improve variances in mob names by only using first four letters of mob name, where we are usign two words
+					mob = string.sub(clean2[1], 1, 4) .. " " .. string.sub(clean2[#clean2], 1, 4)
+				end
+			end
+		
+		DebugNote("Guessed mob is :	" .. mob)
+		if (broadcast == nil or broadcast == true) then
+			BroadcastPlugin(668, mob)
+		end
+		
+		set_short_mob_name(mob, "guess_mob_name")
+		return mob, mob
+	end
+	
+	function auto_hunt_once(name, line, wildcards)
+		hunt_once = true
+		auto_hunt_start(name, line, wildcards)
+	end	
+
+	function auto_hunt_start(name, line, wildcards)
+		EnableTriggerGroup("AutoHunt", true)
+		EnableTriggerGroup("HuntTrick", false)
+
+		auto_hunt_reset()
+		autoHuntMob = wildcards.mob
+		SendNoEcho("hunt " .. autoHuntMob)
+
+	end
+
+	function auto_hunt_abort(name, line, wildcards)
+		EnableTriggerGroup("AutoHunt", false)
+		auto_hunt_reset()
+
+		ColourNote("darkorange", "", "Aborting Auto Hunt...")
+
+	end
+
+	function auto_hunt(name, line, wildcards)
+
+		local conf = wildcards.confidence
+		local dir = wildcards.dir
+
+		if (conf == "certain" or conf == "confident") then -- 90-ish to 100%
+				auto_hunt_move(dir)
+				
+				if not hunt_once then
+					Execute("hunt " .. autoHuntMob)
+					auto_hunt_reset()
+				else
+					hunt_once = false
+					EnableTriggerGroup("AutoHunt", false)
+					auto_hunt_end()
+				end
+		elseif (conf == "almost" or conf == "reasonably sure") then -- need 2 the same				
+			if (autoHuntData[dir] > 0) then
+				auto_hunt_move(dir)
+				auto_hunt_reset()
+				
+				if not hunt_once then
+					Execute("hunt " .. autoHuntMob)
+				else
+					hunt_once = false
+					EnableTriggerGroup("AutoHunt", false)
+					auto_hunt_end()
+				end
+			else
+				Note("Taking multiple hunt samples due to skill...")
+				autoHuntData[dir] = autoHuntData[dir] + 1
+				Execute("hunt " .. autoHuntMob)
+			end
+		end
+
+	end
+	
+
+	-- room.info { "num": 32755, "name": "Charity Lane", "zone": "reme", "terrain": "city", "details": "", "exits": { "n": 32756, "s": 32747, "w": 32795 }, "coord": { "id": 0, "x": 57, "y": 19, "cont": 0 } }	
+	function auto_hunt_move(direction)
+		
+		if (currentRoom == nil) then
+			-- don't know our gmcp exits, so just go with it
+			DebugNote("going with it")
+			Execute(direction) 		
+		else
+			local dir = dir_map[direction]
+			if (currentRoom.exits[dir] ~= nil) then
+				if (tonumber(currentRoom.exits[dir]) == -1 ) then
+					Execute(direction) 		
+				else
+					Execute("xmapper move " .. currentRoom.exits[dir])
+				end
+			else
+				--no exit?  try and open a hidden door that way
+				Execute("open " .. direction)
+				Execute(direction) 		
+			end		
+		end
+		
+	end
+
+	function auto_hunt_end()
+		auto_hunt_reset()
+		autoHuntMob = ""
+	end
+
+	function auto_hunt_reset()
+		autoHuntData = { count = 0, north = 0, south = 0, east = 0, west = 0, up = 0, down = 0 }
+	end
+		
+----------- where trick functions ---------------------------
+	local wt = {}
+	
+	function wt_start(name, line, wildcards)
+		wt = {
+			index = 0,
+			name = wildcards[1]
+		}
+		EnableTriggerGroup("where_trick", true)
+		wt_continue()
+	end
+	
+	function wt_continue()	
+		wt.index = wt.index + 1
+		Send("where " .. wt.index .. "." .. wt.name)
+	end	
+
+	function wt_fail()	
+		EnableTriggerGroup("where_trick", false)
+		Note("Aborting where trick...")
+	end	
+	
+----------- page size functions ---------------------------
+	local page_size = 0
+	local page_size_suspended = false
+	
+	function capture_page_size(name, line, wildcards)
+		Note(name .. ":" .. line .. "," .. tostring(table.concat(wildcards)))
+		EnableTrigger("trg_page_size", false)
+				
+		local size = tonumber(wildcards[1])
+		Note("size:" .. tostring(size) .. "-" .. tostring(wildcards[1]))
+		
+--		if (size == nil) then
+--			page_size = 0
+--		else
+			page_size = size or 0
+			Note(page_size)
+			Send("pagesize 0")
+--		end
+	end
+	
+	function suspend_page_size(name, line, wildcards)
+		if (page_size_suspended == false) then
+			page_size_suspended = true
+			ColourNote("DarkGray", "", "--> Suspending paging... if enabled")
+			EnableTrigger("trg_page_size", true)
+			Send("pagesize")
+		end
+	end	
+
+	function resume_page_size(name, line, wildcards)
+		ColourNote("DarkGray", "", "--> Resuming paging... if enabled")
+		EnableTrigger("trg_page_size", false)
+		if (page_size ~= 0) then
+			Send("pagesize " .. page_size)
+		end
+		page_size_suspended = false
+	end	
+	
+------------- utils --------------
+
+function split(line, delim)
+
+	local result = {}
+	local index = 1
+
+	for token in string.gmatch(line, delim) do
+		result[index] = token
+		index = index + 1
+	end
+
+	return result
+end
+
+function padRight(text, length, padChar)
+
+	local padding = length - string.len(text)
+	for i = 1, padding do
+		text = text .. padChar
+	end
+
+	return text
+end
+
+function trim(s)
+  return s:match'^()%s*$' and '' or s:match'^%s*(.*%S)'
+end
+------------- DB ---------------
+
+function fixsql(s)
+
+	if s then
+		return "'" .. (string.gsub (s, "'", "''")) .. "'" -- replace single quotes with two lots of single quotes
+	else
+		return "NULL"
+	end -- if
+end -- fixsql
+
+
+
+------------- DEBUGGING ---------------
+
+function DebugNote(text)
+	if (showDebug == 1) then
+		--DoAfterSpecial(".1", "Note(\"S&D ~ " .. string.gsub(text, "\"", "\")") .. "\")", sendto.script)
+		Note("S&D ~ " .. text)
+	end
+end
+
+function sd_debug(name, line, wildcards)
+	if (showDebug == 0) then
+		showDebug = 1
+	else
+		showDebug = 0
+	end
+	Note("S&D debug:" .. showDebug)
+end
+
+
+-------------- INSTALL MESSAGE ------------------
+
+function InstallMessage()
+	ColourNote("SteelBlue", "", "+=======================================================+")
+	ColourNote("SteelBlue", "", "+ S&D Installed - type 'search help' for options        +")
+	ColourNote("SteelBlue", "", "+=======================================================+")
+end
+InstallMessage()
+
+]]>
+</script>
+
+
+
+</muclient>

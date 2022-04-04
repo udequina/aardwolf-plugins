@@ -1,0 +1,83 @@
+<muclient>
+	<plugin
+		name="Nok3_Combat_End"
+		author="Nokfah"
+		id="a2e534a19dc80b4093cabbfd"
+		language="Lua"
+		purpose="Echos a tag at the end of combat"	
+		version="1.0"
+	>
+	</plugin>
+	
+	<aliases>
+		<alias		
+			regexp="y" match="^ce on$"			
+			send_to="12" script="On"
+			enabled="y" sequence="100"
+		>			
+		</alias>		
+
+		<alias
+			regexp="y" match="^ce off$"			
+			send_to="12" script="Off"
+			enabled="y" sequence="100"
+		>			
+		</alias>		
+	</aliases>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>			
+				
+	<script>
+	<![CDATA[					
+		local inCombat = false
+		local reportCombatEnd = false			
+	
+		function OnPluginBroadcast (msg, id, name, text)
+			-- Look for GMCP handler.
+			if (id == '3e7dedbe37e44942dd46d264') then
+				if (text == "char.status") then
+					res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+					luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+					assert (loadstring (luastmt or "")) ()																						
+
+					if (gmcpdata ~= nil) then						
+						if (gmcpdata.state == "8" and not inCombat) then					
+							CombatStart()											
+						elseif (gmcpdata.state ~= "8" and inCombat) then												
+							CombatEnd()											
+						end		
+					end				
+				end
+			end		   
+		end -- onpluginbroadcast
+		
+		function On() 
+			reportCombatEnd = true 
+			ColourNote("orange", "", "Combat End: ", "lime", "", "ON")
+		end		
+		
+		function Off() 
+			reportCombatEnd = false 
+			ColourNote("orange", "", "Combat End: ", "red", "", "OFF")
+		end
+		
+		function CombatStart()
+			inCombat = true		
+
+			if (reportCombatEnd) then
+				Simulate("{combat}\n")
+			end	
+		end
+		
+		function CombatEnd()
+			inCombat = false
+			
+			if (reportCombatEnd) then
+				Simulate("{/combat}\n")
+			end
+		end
+	]]>
+	</script>
+</muclient>

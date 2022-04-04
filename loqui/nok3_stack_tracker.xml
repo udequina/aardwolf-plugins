@@ -1,0 +1,529 @@
+<muclient>
+	<plugin
+		name="Nok3_Stack_Tracker"
+		author="Nokfah"
+		id="b5b534a09df30b4093cebbfd"
+		language="Lua"
+		save_state="y"
+		purpose="Tracks the number of stacked attack spells"		
+	>
+	<description trim="n">
+		<![CDATA[
+==================== Stack Tracker Help ====================	
+  strack cmd <command>,<attacks> -- adds a spell you want to track
+      IMPORTANT - Notice there are no spaces between the arguments and the commas
+      command: what you type in to cast the spell (e.g. 'c spear')
+          NOTE: for mudside aliases, the <command> is the alias, 
+		        for client side aliases, the <command> is what the alias sends to be executed
+      attacks: the number of times the command will stack the spell (e.g. 'c spear' would be 1 
+               and 'c spear;c spear' would be 2)
+  strack cmd remove <command> -- removes a command from adding to the counter
+  strack cmd show -- shows the commands that will add to the counter
+  
+  strack spell <spell>,<damage verb>
+	  IMPORTANT - Notice there are no spaces between the arguments and the commas
+      spell: The full name of the spell being cast (e.g. spear of odin)
+      damage verb: [5] Your <this is the damage verb> does UNBELIEVABLE things to blah blah
+  strack spell remove <spell> -- removes a spell from being tracked
+  strack spell show -- shows the spells that are being tracked
+  
+  strack reset -- resets the value of the counter to 0
+  strack (hide|show) -- hides or shows the minwin
+  strack resetgui -- resets the position of the minwin	
+]]>
+		</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>		
+
+	<aliases>		
+		<alias
+			name="strack_help"
+			enabled="y"
+			sequence="100"
+			send_to="12"
+			match="strack help"				
+			>
+			<send>
+				ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+			</send>
+		</alias>
+	
+		<alias
+			name="add_spell"
+			enabled="y"
+			match="^strack spell (.+),(.+)$"
+			regexp="y"
+			send_to="12"
+			script="AddSpell"
+		></alias>	
+		
+		<alias
+			name="remove_spell"
+			enabled="y"
+			match="^strack spell remove (.+)$"
+			regexp="y"
+			send_to="12"
+			script="RemoveSpell"
+		></alias>
+		
+		<alias
+			name="show_spells"
+			enabled="y"
+			match="^strack spell show$"
+			regexp="y"
+			send_to="12"
+			script="ShowSpells"
+		></alias>
+
+		<alias
+			name="add_command"
+			enabled="y"
+			match="^strack cmd (.+),(.+)$"
+			regexp="y"
+			send_to="12"
+			script="AddCommand"
+		></alias>	
+		
+		<alias
+			name="remove_command"
+			enabled="y"
+			match="^strack cmd remove (.+)$"
+			regexp="y"
+			send_to="12"
+			script="RemoveCommand"
+		></alias>	
+		
+		<alias
+			name="show_commandss"
+			enabled="y"
+			match="^strack cmd show$"
+			regexp="y"
+			send_to="12"
+			script="ShowCommands"
+		></alias>
+		
+		<alias
+		    name="reset"
+			script="ResetCounter"
+			enabled="y"
+			match="^strack reset$"			
+			regexp="y"
+		></alias>
+		
+		<alias
+		    name="gui_reset"
+			script="ResetWindow"
+			enabled="y"
+			match="^strack resetgui$"			
+			regexp="y"
+		></alias>
+		
+		<alias
+		    name="gui_hideshow"
+			script="HideShowWindow"
+			enabled="y"
+			match="^strack (hide|show)$"			
+			regexp="y"
+		></alias>
+	</aliases>
+	
+	<triggers>		
+		<trigger
+			name="stunned"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^You are stunned!$"
+			send_to="12"
+		></trigger>
+		
+		<trigger
+			name="nothere"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^They aren't here\.$"
+			send_to="12"
+		></trigger>	
+		
+		<trigger
+			name="sitting"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^You can't cast while sitting\.$"
+			send_to="12"
+		></trigger>
+		
+		<trigger
+			name="sleeping"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^You dream about casting your spells\.$"
+			send_to="12"
+		></trigger>	
+
+		<trigger
+			name="dont_know"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^You do not know a '.*' spell\.$"
+			send_to="12"
+		></trigger>				
+		
+		<trigger
+			name="quenched"			
+			script="DecrementAttack"
+			enabled="y"
+			regexp="y" match="^A powerful force quenches your magic\.$"
+			send_to="12"
+		></trigger>			
+	</triggers>
+	
+	<script>
+	<![CDATA[	
+		require "serialize"		
+					
+		local attackCounter = 0			
+		
+		local spells = {}					
+		if (GetVariable("strack_Spells") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("strack_Spells")
+			assert (loadstring (luastmt or "")) ()		
+			spells = obj
+		end	
+
+		local commands = {}					
+		if (GetVariable("strack_Commands") ~= nil) then			
+			luastmt = "obj = " .. GetVariable("strack_Commands")
+			assert (loadstring (luastmt or "")) ()		
+			commands = obj
+		end		
+		
+		local commandCountMapping = {}		
+		local inCombat = false
+		local counterAfterCombat = 0
+
+		-- GUI variables
+		local win_init = false
+		local z_order_plugin = "462b665ecb569efbf261422f"
+		local pos_x = GetVariable("strack_PosX") or 50
+		local pos_y = GetVariable("strack_PosY") or 50
+		local win_state = GetVariable("strack_WinState") or "show"
+		local win_height = 18		
+		local win_width = 90
+		local win = "strack_gui_" .. GetPluginID ()  -- get a unique name, ensure not empty if outside plugin		
+		local hotspots = {}
+		
+		function OnPluginInstall()
+			for spell, verb in pairs(spells) do
+				AddTriggers(spell, verb)
+			end
+			
+			for cmd, attacks in pairs(commands) do
+				AddAliases(cmd, attacks)
+			end
+					
+			ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))			
+			
+			if (win_state == "show") then
+				CreateWindow()
+				DrawWindow()
+			end
+		end
+		
+		function OnPluginSaveState()			
+			SetVariable("strack_PosX", pos_x)
+			SetVariable("strack_PosY", pos_y)
+			SetVariable("strack_WinState", win_state)			
+		end
+		
+		function OnPluginBroadcast (msg, id, name, text)
+		   -- Look for GMCP handler.
+		   if (id == '3e7dedbe37e44942dd46d264') then
+			  if (text == "char.status") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+				 luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				 assert (loadstring (luastmt or "")) ()																						
+				
+				if (gmcpdata.state == "8") then									
+						inCombat = true					
+				else					
+					if (inCombat) then						
+						-- We have just exited combat, reset the counter
+						counterAfterCombat = attackCounter 
+						if (IsTimer("reset_counter") ~= error_code.eOK) then					
+							AddTimer("reset_counter", 0, 0, 4, "", timer_flag.Enabled + timer_flag.OneShot, "ResetAfterCombat")
+						end						
+					end									
+					
+					inCombat = false
+				end				 
+			  end
+		   end		   
+		end -- onpluginbroadcast
+		
+		function CreateWindow()			
+			if (win_init == false) then				
+				win_init = true
+				WindowCreate (win, 0, 0, win_width, win_height, miniwin.pos_center_all, 0, ColourNameToRGB("gray"))  -- create window
+				
+				-- move the window to the new location
+				WindowPosition(win, pos_x, pos_y, 
+					miniwin.pos_stretch_to_view, 
+					miniwin.create_absolute_location)
+					
+				WindowShow(win,  true)  -- show it 			
+								
+				WindowFont(win, "font", "Lucida Console", 9, false, false, false, false) -- define font
+
+				if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+					CallPlugin(z_order_plugin, "registerMiniwindow", win)					
+				end		
+				
+				if (hotspots["hsDrag1"] == nil) then
+					hotspots["hsDrag1"] = WindowAddHotspot(win, 
+								"hsDrag1",  -- HS id
+								0, 0, win_width, win_height, -- rectangle
+								"mouseover", 
+								"cancelmouseover", 
+								"mousedown",
+								"cancelmousedown", 
+								"mouseup", 
+								"Drag to move",  -- tooltip text
+								miniwin.cursor_both_arrow, 0)  -- 4-way arrows						
+								
+					WindowDragHandler(win, "hsDrag1", "dragmove", "dragrelease", 0) 				
+				end							
+			end
+		end
+		
+		function DrawWindow()	
+			if (win_state == "show") then				
+				-- border
+				WindowRectOp (win, 1, 0, 0, 0, 0, ColourNameToRGB("Silver"), 15)
+				WindowRectOp (win, 1, 1, 1, -1, -1, 0x777777, 15)		
+
+				WindowRectOp (win, miniwin.rect_fill, 1, 1, win_width-1, win_height-1, ColourNameToRGB("black"))
+				WindowText (win, "font", 
+					"Stacked: " .. attackCounter,
+					5, 4, win_width-1, win_height-1,        -- rectangle
+					ColourNameToRGB ("white"),
+					false)
+						
+				WindowShow(win, true)				
+			end
+		end
+		
+		function ResetWindow()
+			WindowPosition(win, 50, 50, 
+			miniwin.pos_stretch_to_view, 
+			miniwin.create_absolute_location)
+			
+			if (IsPluginInstalled(z_order_plugin) and GetPluginInfo(z_order_plugin, 17)) then
+				CallPlugin(z_order_plugin, "boostMe", win)
+			end  
+			
+			win_state = "show"
+			SetVariable("strack_WinState", win_state)
+			WindowShow(win,  true) 
+		end
+		
+		function HideShowWindow(line, name, wildcards)
+			if (wildcards[1] == "show" or wildcards[1] == "hide") then
+				win_state = wildcards[1]
+				SetVariable("strack_WinState", win_state)
+
+				if (win_state == "hide") then
+					WindowShow(win, false) 
+				elseif (win_state == "show") then
+					CreateWindow()
+					DrawWindow()
+					WindowShow(win,  true) 
+				end
+			end
+		end
+		
+		function dragmove(flags, hotspot_id)  
+			pos_x, pos_y = WindowInfo (win, 17) - (win_width / 2),
+					   WindowInfo (win, 18) - (win_height / 2)		 
+															  
+			-- move the window to the new location
+			WindowPosition(win, pos_x, pos_y, 
+						 miniwin.pos_stretch_to_view, 
+						 miniwin.create_absolute_location)			
+		end 			
+		
+		function AddSpell(name, line, wildcards)															
+			spells[wildcards[1]] = wildcards[2]
+			SetVariable("strack_Spells", serialize.save_simple(spells))
+			
+			AddTriggers(wildcards[1], wildcards[2])
+			ColourNote("orange", "black", "Spell Added: " .. wildcards[1])
+		end			
+		
+		function RemoveSpell(name, line, wildcards) 
+			spells[wildcards[1]] = nil
+			SetVariable("strack_Spells", serialize.save_simple(spells))
+			
+			RemoveTriggers(wildcards[1])
+			ColourNote("orange", "black", "Spell Removed: " .. wildcards[1])
+		end
+		
+		function ShowSpells(name, line, wildcards) 
+			ColourNote("orange", "black", "Spell List:")	
+			for spell, verb in pairs(spells) do
+				ColourNote("orange", "black", spell .. " : " .. verb)
+			end
+		end
+		
+		function AddTriggers(spell, verb)					
+			local triggerPrefix = string.gsub(spell, " ", "_")			
+			
+			local matchString = ""					
+				
+			-- Trigger for when the attack hits the enemy			
+			if (IsTrigger(triggerPrefix .. "_hit") ~= error_code.eOK) then
+				AddTrigger(triggerPrefix .. "_hit", "^(\\[[0-9]+\\] )?Your " .. verb .. " .* \\[[0-9]+\\]$", "",
+					trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression,
+					custom_colour.NoChange, 0, "", "DecrementAttack", 12, 1)
+				SetTriggerOption(triggerPrefix .. "_hit", "group", "spell_lag")
+			end
+				
+			-- Trigger for when the attack fails	
+			if (IsTrigger(triggerPrefix .. "_fail") ~= error_code.eOK) then
+				matchString = "^You lost your concentration while trying to cast " .. spell .. "\\.$"			
+				AddTrigger(triggerPrefix .. "_fail", matchString, "",
+					trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression,
+					custom_colour.NoChange, 0, "", "DecrementAttack", 12, 1)				
+			end
+				
+			-- Trigger for when there is no enemy to attack	
+			if (IsTrigger(triggerPrefix .. "_whom") ~= error_code.eOK) then			
+				matchString = "^(Cast )?" .. spell .. " (on )?whom\\?$"			
+				AddTrigger(triggerPrefix .. "_whom", matchString, "",
+					trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression,
+					custom_colour.NoChange, 0, "", "DecrementAttack", 12, 1)				
+			end
+				
+			-- Trigger for not enough mana
+			if (IsTrigger(triggerPrefix .. "_mana") ~= error_code.eOK) then
+				matchString = "^You don't have enough mana to cast \'" .. spell .. "\'\\.$"
+				AddTrigger(triggerPrefix .. "_mana", matchString, "",
+					trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression,
+					custom_colour.NoChange, 0, "", "DecrementAttack", 12, 1)				
+			end
+				
+			-- Trigger for immune
+			if (IsTrigger(triggerPrefix .. "_immune") ~= error_code.eOK) then
+				matchString = "^.* is unaffected by your " .. verb .. "!$"
+				AddTrigger(triggerPrefix .. "_immune", matchString, "",
+					trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression,
+					custom_colour.NoChange, 0, "", "DecrementAttack", 12, 1)
+				SetTriggerOption(triggerPrefix .. "_immune", "group", "spell_lag")
+			end
+		end
+		
+		function AddCommand(name, line, wildcards)									
+			local attacks = 1
+			if (wildcards[2] ~= nil and wildcards[2] ~= "") then attacks = tonumber(wildcards[2]) end					
+			
+			commands[wildcards[1]] = attacks
+			SetVariable("strack_Commands", serialize.save_simple(commands))		
+			
+			AddAliases(wildcards[1], attacks)
+
+			ColourNote("orange", "black", "Command Added: " .. wildcards[1])			
+		end		
+		
+		function RemoveCommand(name, line, wildcards) 
+			commands[wildcards[1]] = nil
+			SetVariable("strack_Commands", serialize.save_simple(commands))
+			
+			RemoveAliases(wildcards[1])
+			ColourNote("orange", "black", "Command Removed: " .. wildcards[1])
+		end
+		
+		function ShowCommands(name, line, wildcards) 
+			ColourNote("orange", "black", "Command List:")	
+			for cmd, attacks in pairs(commands) do
+				ColourNote("orange", "black", cmd .. " : " .. attacks)
+			end
+		end
+		
+		function AddAliases (cmd, attacks)
+			local aliasPrefix = string.gsub(cmd, " ", "_")
+			-- Alias for when the attack command is inputed by the player
+			AddAlias(aliasPrefix .. "_cast", "^" .. cmd .. "( .*)?$", "",
+				alias_flag.Enabled + alias_flag.RegularExpression,				
+				"IncrementAttack")
+			commandCountMapping[aliasPrefix .. "_cast"] = attacks			
+		end
+		
+		function IncrementAttack(name, line, wildcards)
+			Send(line) -- resend the command since we just captured it			
+			attackCounter = attackCounter + commandCountMapping[name]	
+			-- ColourNote("orange", "black", line .. " " .. attackCounter .. "(+" .. commandCountMapping[name] .. ")")
+			DrawWindow()
+		end
+		
+		function DecrementAttack(name, line, wildcards)
+			attackCounter = attackCounter - 1			
+			if (attackCounter < 0) then attackCounter = 0 end			
+			
+			-- Decrement the counterAfterCombat in case it is active
+			counterAfterCombat = counterAfterCombat - 1			
+			if (counterAfterCombat < 0) then counterAfterCombat = 0 end
+			
+			-- ColourNote("orange", "black", line .. " " .. attackCounter .. "(-1)")
+			DrawWindow()					
+			
+			if (GetTriggerOption(name, "group") == "spell_lag") then					
+				if (IsTimer("disable_spells") ~= error_code.eOK) then					
+					EnableGroup("spell_lag", false)
+					AddTimer("disable_spells", 0, 0, .2, "", timer_flag.Enabled + timer_flag.OneShot, "EnableSpellTriggers")
+				end
+			end
+		end							
+		
+		function ResetCounter()			
+			attackCounter = 0
+			DrawWindow()			
+		end
+		
+		function ResetAfterCombat()
+			if (not inCombat) then
+				while (counterAfterCombat > 0) do
+					counterAfterCombat = counterAfterCombat - 1
+					attackCounter = attackCounter - 1			
+					if (attackCounter < 0) then attackCounter = 0 end			
+				end
+			end
+			
+			counterAfterCombat = 0
+		end
+		
+		function EnableSpellTriggers()
+			EnableGroup("spell_lag", true)
+		end
+		
+		function RemoveAliases(cmd)
+			-- trigger name is the concatenation of the command and the spell name
+			local triggerPrefix = string.gsub(cmd, " ", "_")
+			
+			DeleteAlias(triggerPrefix .. "_cast")			
+		end	
+		
+		function RemoveTriggers(spell)
+			-- trigger name is the concatenation of the command and the spell name
+			local triggerPrefix = string.gsub(spell, " ", "_")
+						
+			DeleteTrigger(triggerPrefix .. "_hit")
+			DeleteTrigger(triggerPrefix .. "_fail")
+			DeleteTrigger(triggerPrefix .. "_whom")
+			DeleteTrigger(triggerPrefix .. "_mana")
+			DeleteTrigger(triggerPrefix .. "_immune")
+		end		
+	]]>
+	</script>
+</muclient>

@@ -1,0 +1,105 @@
+<muclient>
+<plugin
+   name="Nok3_AOE_Total"
+   author="Nokfah"
+   id="13c89a07c5b9785a309fb199"
+   language="Lua"
+   purpose="Totals aoe spell damage per cast"   
+   save_state="y"
+   version="1.0"
+   >
+</plugin>
+
+<aliases>
+	<alias regexp="y" match = "^aoetot (on|off)$"
+		enabled="y" script="AOEOnOff"
+	></alias>
+</aliases>
+
+<script>
+<![CDATA[
+	require "commas"
+	require "serialize"
+
+	local spells = {
+		"ultrablast",
+		"field of death",
+		"fire breath",
+		"swing",
+		"purging",
+		"toxic cloud",
+		"fiery rain",
+		"starburst",
+		"mental energy",
+		"mind force",
+		"hammering blow",
+		"brilliant arrow of light",
+		"projected force"
+	}	
+
+	local capturedAOE = {}
+	local captureOrder = {}
+
+	function OnPluginInstall()
+		for i, spell in ipairs(spells) do
+			local regex = "^(?:\\[[0-9]+\\] )?Your (" .. spell .. ") .*(?:\\.|!) \\[([0-9]+)\\]$" 								
+			local triggerFlags = trigger_flag.Enabled + trigger_flag.KeepEvaluating + trigger_flag.RegularExpression + trigger_flag.OmitFromOutput								
+		
+			AddTriggerEx("spell_" .. spell:gsub("%s+", ""), regex, "", triggerFlags,
+				custom_colour.NoChange, 0, "", "SpellHit", sendto.script, 50)
+			SetTriggerOption("spell_" .. spell:gsub("%s+", ""), "group", "aoe")
+		end
+	end
+	
+	function AOEOnOff(name, line, wildcards)
+		if wildcards[1] == "on" then
+			EnableTriggerGroup("aoe", true)
+		else
+			EnableTriggerGroup("aoe", false)
+		end
+	end
+
+	function SpellHit(name, line, wildcards, styles)			
+		local spellName = wildcards[1]		
+		
+		if capturedAOE[spellName] == nil then
+			table.insert(captureOrder, spellName)
+			capturedAOE[spellName] = {
+				hits = 0,
+				damage = 0				
+			}
+		end		
+		
+		capturedAOE[spellName].damage = capturedAOE[spellName].damage + tonumber(wildcards[2])
+		capturedAOE[spellName].hits = capturedAOE[spellName].hits + 1		
+						
+		if IsTimer("spell_complete") ~= error_code.eOK then					
+			AddTimer("spell_complete", 0, 0, .1, "", timer_flag.Enabled + timer_flag.OneShot, "SpellComplete")
+		else
+			ResetTimer("spell_complete")
+		end		
+	end	
+	
+	function SpellComplete()
+		--ColourNote("orange", "", "\n")
+		for i, spell in pairs(captureOrder) do
+			ColourNote(
+				"dimgray", "", "[ ",
+				 "orange", "", string.upper(spell),			 
+				 "dimgray", "", " | ",
+				"red", "", commas(capturedAOE[spell].damage),
+				"dimgray", "", " | ",
+				"lime", "", tostring(capturedAOE[spell].hits),
+				"dimgray", "", " x ",
+				"cyan", "", commas(string.format("%.1f", capturedAOE[spell].damage/capturedAOE[spell].hits)),
+				"dimgray", "", " ]")
+		end		
+		--ColourNote("orange", "", "\n")
+
+		capturedAOE = {}
+		captureOrder = {}
+	end
+]]>
+</script>
+
+</muclient>	

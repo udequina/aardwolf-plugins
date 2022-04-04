@@ -1,0 +1,453 @@
+<muclient>
+	<plugin
+		name="Nok3_Mob_Logger"
+		author="Nokfah"
+		id="c5b534a09df80b4093cabbfd"
+		language="Lua"
+		purpose="Log details about mobs"
+		version="1"
+	>
+	<description trim="n">
+<![CDATA[
+
+MOB DATABASE USAGE:
+
+===== SHOW THIS HELP ===============>
+> Help
+    mob help - shows only this help
+> Lookup
+    lm - lookup the mob you have loaded in your ‘quick where’
+    lm <mob> - lookup mob
+    lmh <mob> - lookup mob in your current area
+    lmx <mob> - lookup mob using an exact search
+    lmxh <mob> - lookup mob using an exact search in your current area
+> Go
+    lg # -  go to the room number based on the output from ‘lm’
+> Keywords
+    kw # <keyword> Set the keyword for the mob based on the output from ‘lm’
+    kw # clear - clear the keyword set for the mob
+		
+]]>
+</description>
+	</plugin>
+	
+	<!--  Get our standard constants -->
+	<include name="constants.lua"/>	
+	
+	<aliases>
+		<alias match="^mob help$"
+			enabled="y"
+			sequence="100"
+			send_to="12"
+			regexp="y"
+			keep_evaluating="y"		
+		>
+		<send>
+			ColourNote("SteelBlue", "", GetPluginInfo (GetPluginID (), 3))
+		</send>
+		</alias> 
+		
+		<alias
+			name="mob_search"
+			script="mob_search"			
+			sequence="100"
+			match="^lm (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_exact"
+			script="mob_search_exact"			
+			sequence="100"
+			match="^lmx (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_here"
+			script="mob_search_here"			
+			sequence="100"
+			match="^lmh (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="mob_search_exact_here"
+			script="mob_search_exact_here"			
+			sequence="100"
+			match="^lmxh (%?.+%?)$"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_set_keyword"
+			script="mob_set_keyword"			
+			sequence="200"
+			match="^kw ([0-9]+) (.*)"
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_clear_keyword"
+			script="mob_clear_keyword"			
+			sequence="100"
+			match="^kw ([0-9]+) clear"			
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias 
+			name="mob_delete"
+			script="mob_delete"			
+			match="^lm delete ([0-9]+)"
+			sequence="50"			
+			regexp="y"			
+			enabled="y"
+		>
+		</alias>
+		
+		<alias
+			name="goto_logger_mob"
+			match="^lg (?<index>[0-9]+)$"
+			enabled="y"
+			regexp="y"
+			sequence="100"
+			ignore_case="y"
+			script="goto_logger_mob"
+		>
+		</alias>			
+	</aliases>
+	
+	<triggers>		
+		<trigger 
+			name="log_attack"
+			script="log_attack"
+			enabled="y"
+			sequence="100"
+			match="^\[(\d+)\] Your ([\w\s-]+) (misses|tickles|bruises|scratches|grazes|nicks|scars|hits|injures|wounds|mauls|maims|mangles|mars|LACERATES|DECIMATES|DEVASTATES|ERADICATES|OBLITERATES|EXTIRPATES|INCINERATES|MUTILATES|DISEMBOWELS|MASSACRES|DISMEMBERS|RENDS|- BLASTS -|-= DEMOLISHES =-|\*\* SHREDS \*\*|\*\*\*\* DESTROYS \*\*\*\*|\*\*\*\*\* PULVERIZES \*\*\*\*\*|-=- VAPORIZES -=-|\<-==-\> ATOMIZES \<-==-\>|\<-:-\> ASPHYXIATES \<-:-\>|\<-\*-\> RAVAGES \<-\*-\>|\<\>\*\<\> FISSURES \<\>\*\<\>|\<\*\>\<\*\> LIQUIDATES \<\*\>\<\*\>|\<\*\>\<\*\>\<\*\> EVAPORATES \<\*\>\<\*\>\<\*\>|\<-=-\> SUNDERS \<-=-\>|\<=-=\>\<=-=\> TEARS INTO \<=-=\>\<=-=\>|\<-\>\*\<=\> WASTES \<=\>\*\<-\>|\<-\+-\>\<-\*-\> CREMATES \<-\*-\>\<-\+-\>|\<\*\>\<\*\>\<\*\>\<\*\> ANNIHILATES \<\*\>\<\*\>\<\*\>\<\*\>|\<--\*--\>\<--\*--\> IMPLODES \<--\*--\>\<--\*--\>|\<-\>\<-=-\>\<-\> EXTERMINATES \<-\>\<-=-\>\<-\>|\<-==-\>\<-==-\> SHATTERS \<-==-\>\<-==-\>|\<\*\>\<-:-\>\<\*\> SLAUGHTERS \<\*\>\<-:-\>\<\*\>|\<-\*-\>\<-\>\<-\*-\> RUPTURES \<-\*-\>\<-\>\<-\*-\>|\<-\*-\>\<\*\>\<-\*-\> NUKES \<-\*-\>\<\*\>\<-\*-\>|-\<\[=-\+-=\]\<:::\<\>:::\> GLACIATES \<:::\<\>:::\>\[=-\+-=\]\>-|\<-=-\>\<-:-\*-:-\>\<\*--\*\> METEORITES \<\*--\*\>\<-:-\*-:-\>\<-=-\>|\<-:-\>\<-:-\*-:-\>\<-\*-\> SUPERNOVAS \<-\*-\>\<-:-\*-:-\>\<-:-\>|does UNSPEAKABLE things to|does UNTHINKABLE things to|does UNIMAGINABLE things to|does UNBELIEVABLE things to) (.+). \[(\d+)\]$"
+			regexp="y"
+		>
+		</trigger>
+	
+		<trigger 
+			name="log_exp"
+			script="log_exp"
+			enabled="y"
+			sequence="100"
+			match="^You receive (\d+)(\+(\d+))? experience points?\.$"
+			regexp="y"
+		>
+		</trigger>		
+
+		<trigger 
+			name="log_gold"
+			script="log_gold"
+			enabled="y"
+			sequence="100"
+			match="^You get ([0-9,]+) gold coins? from the (.+) corpse of (.+)\.$"
+			regexp="y"
+		>
+		</trigger>		
+	</triggers>			
+				
+	<script>
+	<![CDATA[	
+		require "serialize"
+	
+		local dbloc = "loot.db"		
+		
+		local currentArea = ""
+		local currentRoom = ""
+		local bonusGold = 0
+		
+		local newFight = true
+		
+		local mobList = {}
+		local roomList = {}
+		
+		local currentState = "3"
+	
+		function OnPluginInstall()
+			ColourNote("SteelBlue", "", GetPluginInfo (GetPluginID (), 3))
+		end
+	
+		function OnPluginBroadcast (msg, id, name, text)			
+			-- All of this is just to keep tabs on our current room and area
+		
+		   -- Look for GMCP handler.
+		   if (id == '3e7dedbe37e44942dd46d264') then			  
+			  if (text == "char.status") then
+				res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")				 
+				luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				assert (loadstring (luastmt or "")) ()																																		
+									
+				if (currentState ~= gmcpdata.state and currentState == "8") then								
+					newFight = true
+				end			
+
+				currentState = gmcpdata.state
+			  elseif (text == "room.info") then
+				 res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+				 luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+
+				 assert (loadstring (luastmt or "")) ()
+							
+				-- Update the current area and room		
+				currentArea = gmcpdata.zone														
+				currentRoom = gmcpdata.num						
+			  end
+		   end		   
+		end -- onpluginbroadcast
+	
+		function log_attack(name, line, wildcards)
+			if (newFight) then
+				newFight = false
+				
+				local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)			
+				
+				local mobName = clean_input(wildcards[4])
+				
+				local select = "SELECT m.MobId, m.Name, ml.RoomNumber, ml.Occurrences FROM Mob as m LEFT JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+						   " WHERE m.Name = \'" .. mobName .. "\'" ..					   
+						   " AND ml.Area = '" .. currentArea .. "';"								   		
+									
+				-- Iterate over the results to see if we need to create a new mob or room record
+				local newMob = true
+				local newRoom = true
+				local mobId = 0
+				local numOccur = 0
+				for id, name, room, occurrences in lootDB:urows(select) do 		
+					newMob = false
+					mobId = id					
+					if(currentRoom == tostring(room)) then					
+						numOccur = occurrences
+						newRoom = falsecp 
+					end				
+				end			
+				
+				if (newMob) then
+					lootDB:exec("INSERT INTO Mob (name) Values(\'" .. mobName .. "\');")
+					mobId = lootDB:last_insert_rowid()		
+					-- ColourNote("orange", "black", "New Mob Logged: " .. mobName)				
+				end
+				
+				if (newRoom) then
+					lootDB:exec("INSERT INTO MobLocation (MobId, RoomNumber, Area) Values(" .. mobId .. ", " .. currentRoom .. ", \'" .. currentArea .. "\');")						
+					-- ColourNote("orange", "black", "New Room Logged: " .. mobName .. "|" .. currentRoom)
+				elseif (not newRoom and not newMob) then
+					lootDB:exec("UPDATE MobLocation SET Occurrences = Occurrences + 1 WHERE RoomNumber = " .. currentRoom .. " AND MobId = " .. mobId .. ";")
+					-- ColourNote("orange", "black", "Updated Mob Occurrences: " .. mobName .. "|" .. currentRoom .. "|" .. (numOccur + 1))
+				end						
+				
+				lootDB:close()  -- close it
+			end
+		end
+	
+		function log_exp(name, line, wildcards)
+			newFight = true			
+		end
+	
+		function log_gold(name, line, wildcards)	
+			newFight = true								
+		end			
+		
+		function mob_delete(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			local mobId = mobList[mobNum].id				
+						
+						
+			ColourNote("orange", "black", "Keyword for " .. mobList[mobNum].name .. " set to \'" .. wildcards[2] .. "\'")		
+			
+			lootDB:close()
+		end
+		
+		function mob_search(name, line, wildcards)				
+			get_mob_rooms("%" .. string.gsub(wildcards[1], " ", "%%") .. "%")						
+		end
+		
+		function mob_search_exact(name, line, wildcards)				
+			get_mob_rooms(wildcards[1])									
+		end
+		
+		function mob_search_here(name, line, wildcards)				
+			get_mob_rooms("%" .. string.gsub(wildcards[1], " ", "%%") .. "%", currentArea)
+		end
+		
+		function mob_search_exact_here(name, line, wildcards)				
+			get_mob_rooms(wildcards[1], currentArea)
+		end
+		
+		function get_mob_rooms(mobName, areaName)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			mobName = clean_input(mobName)
+			
+			local select = "SELECT m.MobId, m.Name, m.Keyword, ml.Area, ml.RoomNumber, ml.Occurrences" .. 
+						   " FROM Mob as m INNER JOIN MobLocation AS ml ON m.MobId = ml.MobId" ..
+					       " WHERE m.Name like \'" .. mobName .. "\'"
+			if (areaName ~= nil and areaName ~= "") then
+				select = select .. " AND ml.Area like \'%" .. areaName .. "%\'"
+			end
+					   
+			local rowCount = 0
+			local roomIds = ""
+			local mobs = {}
+		    for mobId, mobName, mobKeyword, areaName, roomId, mobOccurrences in lootDB:urows(select) do
+				rowCount = rowCount + 1
+				roomIds = roomIds .. roomId .. ","
+				
+				local key = mobName .. " | " .. areaName
+				if (mobs[key] == nil) then mobs[key] = { id = mobId, mob = mobName, keyword = mobKeyword, locations = {} } end				
+				table.insert(mobs[key].locations, { area = areaName, room = roomId, occurrences = mobOccurrences })				
+			end	
+			lootDB:close()					
+			
+			if (rowCount == 0) then
+				ColourNote("orange", "black", "No mobs found")
+			else
+				local search_rooms_sql = 
+					"SELECT distinct r.uid as uid, r.name as name, info, " ..
+					"r.norecall as recall, r.noportal as portal " ..					
+					"FROM rooms r " ..
+					"LEFT OUTER JOIN areas a ON r.area = a.uid " ..
+					"WHERE r.uid in (" .. string.sub(roomIds, 1, -2) .. ")"
+				
+				local worldPath = GetInfo(66)..Trim(string.gsub(WorldName(), "[^%w%s()_-]", ""))
+				local mapperDB = assert(sqlite3.open(worldPath .. ".db"))
+					
+				local rooms = {}
+				for roomId, roomName, roomInfo, roomRecall, roomPortal in mapperDB:urows(search_rooms_sql) do							
+					rooms[tonumber(roomId)] = { name = roomName, info = roomInfo, norecall = roomRecall, noportal = roomPortal }					
+				end
+				mapperDB:close()
+				
+				mobList = {}
+				roomList = {}
+				mobIndex = 1
+				roomIndex = 1
+				for mob, mobInfo in spairs(mobs, function(t,a,b) return string.len(string.sub(a, 1, string.find(a, "|"))) < string.len(string.sub(b, 1, string.find(b, "|"))) end) do
+					ColourNote("white", "black", mobIndex .. ". " .. mob .. " (" .. (mobInfo.keyword or "") .. ")")
+					mobList[mobIndex] = { name = mobInfo.mob, id = mobInfo.id }
+					mobIndex = mobIndex + 1	
+					for mob, locationInfo in spairs(mobInfo.locations, function(t,a,b) return tonumber(t[a].occurrences or "0") > tonumber(t[b].occurrences or "0") end) do												
+						-- IF to make sure the room is in the mapper db first
+						if (rooms[tonumber(locationInfo.room)] ~= nil) then
+							ColourTell("lightblue", "black", string.sub("   " .. roomIndex .. ".   ", 1, 6))
+							ColourTell("lime", "black", "(" .. locationInfo.occurrences .. ")")	
+												
+							-- pk
+							if (rooms[tonumber(locationInfo.room)].info ~= nil and string.find(rooms[tonumber(locationInfo.room)].info, "pk") ~= nil) then
+								ColourTell ("Red", "black", "[PK]")
+							end
+						
+							-- norecall
+							if (rooms[tonumber(locationInfo.room)].norecall ~= nil and rooms[tonumber(locationInfo.room)].norecall == 1) then
+								ColourTell ("darkorange", "black", "[R]")
+							end
+							
+							--noportal
+							if (rooms[tonumber(locationInfo.room)].noportal ~= nil and rooms[tonumber(locationInfo.room)].noportal == 1) then
+								ColourTell ("darkorange", "black", "[P]")
+							end							
+							
+							ColourNote("lightblue", "black", rooms[tonumber(locationInfo.room)].name .. " | " .. locationInfo.room)
+							
+							roomList[roomIndex] = { room = locationInfo.room }
+							roomIndex = roomIndex + 1
+						end
+					end
+					ColourNote("white", "black", "")
+				end
+					
+			end	
+		end
+		
+		function mob_set_keyword(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Keyword = \'" .. wildcards[2] .. "\'" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("orange", "black", "Keyword for " .. mobList[mobNum].name .. " set to \'" .. wildcards[2] .. "\'")		
+			
+			lootDB:close()
+		end
+		
+		function mob_clear_keyword(name, line, wildcards)
+			local lootDB = sqlite3.open(GetInfo (66) .. "\\Logs\\" .. dbloc)								
+			
+			local mobNum = tonumber(wildcards[1])
+			
+			local update = "UPDATE Mob" .. 
+						   " SET Keyword = \'\'" ..
+					       " WHERE MobId = \'" .. mobList[mobNum].id .. "\'"
+						
+			lootDB:exec(update)
+						
+			ColourNote("orange", "black", "Keyword for " .. mobList[mobNum].name .. " cleared")		
+			
+			lootDB:close()
+		end
+		
+		function goto_logger_mob(name, line, wildcards)			
+			local index = tonumber(wildcards[1])
+			if (roomList[index] ~= nil) then
+				local cmd = "mapper goto " .. roomList[index].room
+				ColourNote("Orange", "Black", cmd)
+				Execute(cmd)
+			end
+		end			
+		
+		function clean_input(input)
+			return (string.gsub(input, "\'", ""))
+		end
+		
+		function clean_number(number)
+		    return (string.gsub(number, ",", ""))
+		end
+		
+		-- Taken from http://stackoverflow.com/questions/15706270/sort-a-table-in-lua
+		function spairs(t, order)
+			-- collect the keys
+			local keys = {}
+			for k in pairs(t) do keys[#keys+1] = k end
+
+			-- if order function given, sort by it by passing the table and keys a, b,
+			-- otherwise just sort the keys 
+			if order then
+				table.sort(keys, function(a,b) return order(t, a, b) end)
+			else
+				table.sort(keys)
+			end
+
+			-- return the iterator function
+			local i = 0
+			return function()
+				i = i + 1
+				if keys[i] then
+					return keys[i], t[keys[i]]
+				end
+			end
+		end
+	]]>
+	</script>
+</muclient>
