@@ -9,6 +9,7 @@
 <variables><variable name="example"></variable></variables>
 
 <timers>
+    
 	<timer name="tim_init_plugin"
 		second="0.5" active_closed="y"
 		script="init_plugin"
