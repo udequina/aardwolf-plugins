@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+	<plugin
+		name="Rauru_Mobber"
+		author="Rauru"
+		id="252b8dd0a1b4b0966f590d6f"
+		language="Lua"
+		purpose="A mob database plugin for campaigns and global quests."
+		save_state="y"
+		requires="5.06"
+		version="2.45"
+	>
+		<description trim="y">
+		<![CDATA[
+		]]>
+		</description>
+	</plugin>
+	<script>
+		<![CDATA[
+			local path = string.match(GetPluginInfo(GetPluginID(), 6), "(.*)\\.*$") .. "\\lua\\";
+			package.path = path .. "?;" .. path .. "?.lua;" .. package.path;
+			
+			require("mobber");
+		]]>
+	</script>
+</muclient>

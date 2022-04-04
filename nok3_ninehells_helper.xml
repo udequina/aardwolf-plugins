@@ -1,0 +1,429 @@
+<muclient>
+<plugin
+   name="Nok3_Ninehells_Helper"
+   author="Nokfah"
+   id="6c14eda236b255c068864eac"
+   language="Lua"
+   purpose="Helps navigating ninehells"   
+   save_state="y"
+   version="1.0"
+   >
+      <description trim="n">
+      <![CDATA[
+==================== Ninehells Helper Help ====================
+nh on/off  -- turns the helper on and off
+ 
+nh <mob>   -- sets the mob to hunt for 
+              set to dark eight for up
+              set to ruklav for down
+nh hunt    -- hunts the mob you have set
+nh up/down -- tells the helper whether you want to go up or down
+   ]]>
+   </description>
+</plugin>
+ 
+<aliases>
+   <alias 
+      regexp="y" match="^nh on$"
+      enabled="y" sequence="100"
+      script="On"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh off$"
+      enabled="y" sequence="100"
+      script="Off"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh help$"
+      enabled="y" sequence="100"
+      script="Help"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh hunt$"
+      enabled="y" sequence="100"
+      script="HuntMob"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh (up|down)$"
+      enabled="y" sequence="100"
+      script="SetGoing"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh ex$"
+      enabled="y" sequence="100"
+      script="ExitNineHells"
+   ></alias>
+ 
+   <alias 
+      regexp="y" match="^nh (.*)$"
+      enabled="y" sequence="200"
+      script="SetHuntMob"
+   ></alias>
+ 
+   <alias name="track_move"
+      regexp="y" match="^(?<ret>ret )?(?<dir>n|e|s|w|u|d)$"
+      enabled="n" sequence="100"
+      script="MoveDirection"
+   ></alias>
+ 
+   <alias
+      regexp="y" match="^nh showmap$"
+      enabled="y" sequence="100"
+      script="ShowMap"
+   ></alias>
+</aliases>
+ 
+<triggers>
+   <trigger
+      regexp="y" match="^Obvious exits from \[ On the (.*) [Ll]ayer of the Nine Hells \]:$"
+      enabled="y" script="SetCurrentLayer"
+   ></trigger>
+ 
+   <trigger
+      regexp="y" match="^ (?<exit>North|East|South|West|Up|Down)\s+: On the (?<layer>.*) [Ll]ayer of the Nine Hells"
+      enabled="y" script="Exit"
+      omit_from_output="y"
+   ></trigger>
+ 
+   <trigger name="four_to_castle"
+      regexp="y" match="^ (?<exit>North|East|South|West|Up|Down)\s+: Before the Crystal Castle"
+      enabled="n" script="FourToCastleResult"
+      omit_from_output="y"
+   ></trigger>
+ 
+   <trigger name="five_to_castle"
+      regexp="y" match="^ (?<exit>North|East|South|West|Up|Down)\s+: On the Ramparts of a Crystal Tower"
+      enabled="n" script="FiveToCastleResult"
+      omit_from_output="y"
+   ></trigger>
+ 
+   <trigger name="nine_to_castle"
+      regexp="y" match="^ (?<exit>North|East|South|West|Up|Down)\s+: Before the Iron Fortress of Malsheen"
+      enabled="n" script="NineToCastleResult"
+      omit_from_output="y"
+   ></trigger>
+ 
+   <trigger name="hunt_result"
+      regexp="y" match="^You are certain that (?<mob>.*) is (?<direction>.*) from here\.$"   
+      enabled="n" script="HuntResult"
+   ></trigger>
+ 
+   <trigger
+      regexp="y" match="^Ruklav says 'Grant this humble mortal escape from this prison\.'$"   
+      enabled="y" script="ExitedNineHells"
+   ></trigger>   
+</triggers>
+ 
+<script>
+<![CDATA[
+   require "serialize"
+ 
+   -- ^A barbazu exclaims 'You shall die, .*!'
+   -- ^A lemure growls and attacks!$   
+   -- A gelugon growls and attacks!
+ 
+   local nameToLayer = {
+      ["Avernus"] = 1,
+      ["Dis"] = 2,
+      ["Minauros"] = 3,
+      ["Phlegethus"] = 4,
+      ["Stygia"] = 5,
+      ["Malbolge"] = 6,
+      ["Maladomini"] = 7,
+      ["Caina"] = 8,
+      ["Nessus"] = 9
+   }
+ 
+   local layerToName = {
+      [1] = "Avernus",
+      [2] = "Dis",
+      [3] = "Minauros",
+      [4] = "Phlegethus",
+      -- 4644: 4 (up to) Before the Crystal Castle
+      -- 4657: 5 (down to) On the Ramparts of a Crystal Tower
+      [5] = "Stygia",
+      [6] = "Malbolge",
+      [7] = "Maladomini",
+      [8] = "Caina",
+      [9] = "Nessus"
+      -- 4696: 9 (up to) Before the Iron Fortress of Malsheen 
+   }
+ 
+   local currentLayerName = ""
+   local huntMob = ""
+   local nextExit = ""
+   local going = ""
+   local inCombat = false
+   local onoff = "on"
+ 
+   local lastMove = nil
+   local map = {}
+   if (GetVariable("map") ~= nil) then
+      luastmt = "obj = " .. GetVariable("map")
+      assert (loadstring (luastmt or "")) ()    
+      map = obj
+   end
+ 
+   function Help()
+      ColourNote("orange", "black", GetPluginInfo (GetPluginID (), 3))
+   end
+ 
+   function OnPluginInstall()
+      Help()
+   end
+ 
+   function OnPluginBroadcast (msg, id, name, text)
+      -- Look for GMCP handler.
+      if (id == '3e7dedbe37e44942dd46d264') then
+         if (text == "char.status") then
+            res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","char.status")           
+            luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+ 
+            assert (loadstring (luastmt or "")) ()                                                                
+ 
+            if (gmcpdata ~= nil) then                 
+               if (gmcpdata.state == "8" and not inCombat) then               
+                  inCombat = true                            
+               elseif (gmcpdata.state ~= "8" and inCombat) then                                    
+                  inCombat = false
+               end                            
+            end               
+         elseif (text == "room.info") then
+            res, gmcparg = CallPlugin("3e7dedbe37e44942dd46d264","gmcpval","room.info") --- We just want the gmcp.char section.
+            luastmt = "gmcpdata = " .. gmcparg --- Convert the serialized string back into a lua table.
+ 
+            assert (loadstring (luastmt or "")) ()
+ 
+            if (gmcpdata.zone == 'ninehells') then                         
+               Map(roomId, tonumber(gmcpdata.num))
+ 
+               roomId = tonumber(gmcpdata.num)
+ 
+               if onoff == "on" then
+                  if roomId == 4613 then
+                     -- entrance room
+                     EnableAlias("track_move", true)
+                     Execute("nh up")
+                     Send("ex")
+                  elseif (roomId >= 4614 and roomId <= 4643) or (roomId >= 4658 and roomId <= 4695) then
+                     Send("ex")   
+                  elseif roomId == 4644 then
+                     -- layer 4 to middle castle
+                     if going == "up" then
+                        FourToCastle()
+                     else
+                        Send("ex")
+                     end
+                  elseif roomId == 4657 then
+                     -- layer 5 to middle castle                   
+                     if going == "down" then
+                        FiveToCastle()
+                     else
+                        Send("ex")
+                     end
+                  elseif roomId == 4645 and going == "up" then                     
+                     Execute("mapper goto 4657")
+                  elseif roomId == 4650 and going == "down" then
+                     Execute("mapper goto 4644")
+                  elseif roomId == 4696 then
+                     -- layer 9 to top castle
+                     if going == "up" then
+                        NineToCastle()
+                     else
+                        Send("ex")
+                     end
+                  elseif roomId == 4697 and going == "up" then
+                     -- top of maze
+                     Execute("mapper goto 4709")
+                  elseif roomId == 4698 and going == "up" then
+                     Execute("nh down")
+                     Execute("nh ruk")
+                  end
+               end
+            end 
+         end           
+      end
+   end
+ 
+   function MoveDirection(name, line, wildcards)
+      Note("last move: " .. wildcards.dir)
+      lastMove = wildcards.dir
+      Send(wildcards.ret .. wildcards.dir)
+   end
+ 
+   function Map(from, to)
+      if lastMove ~= nil then
+         if map[from] == nil then map[from] = {} end
+         if map[from][lastMove] == nil then map[from][lastMove] = {} end
+         if map[from][lastMove][to] == nil then map[from][lastMove][to] = 0 end
+ 
+         map[from][lastMove][to] = map[from][lastMove][to] + 1
+         lastMove = nil
+ 
+         SetVariable("map", serialize.save_simple(map))
+      end
+   end
+ 
+   function ShowMap()
+      Note(serialize.save_simple(map))
+   end
+ 
+   function On() 
+      onoff = "on" 
+      ColourNote("orange", "", "Ninehells Helper: ", "lime", "", "ON")
+   end
+   function Off() 
+      onoff = "off" 
+      ColourNote("orange", "", "Ninehells Helper: ", "red", "", "OFF")
+   end
+ 
+   function ExitNineHells()      
+      Send("give 25000 gold ruklav")
+   end
+ 
+   function ExitedNineHells()
+      lastMove = nil
+      EnableAlias("track_move", false)      
+   end
+ 
+   function SetHuntMob(name, line, wildcards)
+      huntMob = wildcards[1]
+      ColourNote("orange", "", "Hunt mob set to: ", "cyan", "", huntMob)
+   end
+ 
+   function SetGoing(name, line, wildcards)
+      going = wildcards[1]
+      ColourNote("orange", "", "Going: ", "cyan", "", going)
+   end
+ 
+   function SetCurrentLayer(name, line, wildcards)      
+      currentLayerName = wildcards[1]
+   end		  
+ 
+   function Exit(name, line, wildcards, styles)      
+      local exitLayer = nameToLayer[wildcards.layer]
+      local currentLayer = nameToLayer[currentLayerName]
+ 
+      if onoff == "on" then
+         if currentLayer ~= nil then
+            -- check if exit is up or down from current layer
+            if currentLayer ~= 1 and layerToName[currentLayer-1] == wildcards.layer then
+               -- down one layer
+               ColourNote("red", "", line)
+               if going == "down" then
+                  nextExit = wildcards.exit
+               end
+            elseif currentLayer ~= 9 and layerToName[currentLayer+1] == wildcards.layer then
+               -- up one layer
+               ColourNote("green", "", line)
+               if going == "up" then
+                  nextExit = wildcards.exit
+               end
+            else
+               -- same layer that we are already on
+               for i, style in ipairs(styles) do
+                  ColourTell(RGBColourToName(style.textcolour), "", style.text)
+               end               
+            end
+         end
+ 
+         if IsTimer("exits_complete") ~= error_code.eOK then               
+            AddTimer("exits_complete", 0, 0, .1, "", timer_flag.Enabled + timer_flag.OneShot, "ExitsComplete")
+         else
+            ResetTimer("exits_complete")
+         end  
+      end
+   end
+ 
+   function FourToCastle()
+      EnableTrigger("four_to_castle", true)
+      Send("ex")
+   end
+ 
+   function FourToCastleResult(name, line, wildcards)
+      EnableTrigger("four_to_castle", false)
+      ColourNote("green", "", line)
+      nextExit = wildcards[1]
+      ExitsComplete()
+   end
+ 
+   function FiveToCastle()
+      EnableTrigger("five_to_castle", true)
+      Send("ex")
+   end
+ 
+   function FiveToCastleResult(name, line, wildcards)
+      EnableTrigger("five_to_castle", false)
+      ColourNote("green", "", line)
+      nextExit = wildcards[1]
+      ExitsComplete()
+   end
+ 
+   function NineToCastle()
+      EnableTrigger("nine_to_castle", true)
+      Send("ex")
+   end
+ 
+   function NineToCastleResult(name, line, wildcards)
+      EnableTrigger("nine_to_castle", false)
+      ColourNote("green", "", line)
+      nextExit = wildcards[1]
+      ExitsComplete()
+   end
+ 
+   function ExitsComplete()
+      local command = ""
+      if nextExit ~= "" then
+         command = CleanExit(nextExit)
+         nextExit = ""
+ 
+         if inCombat then command = "ret " .. command end
+      else
+         command = "nh hunt"         
+      end
+ 
+      LoadCommand(command)
+   end
+ 
+   function HuntMob()
+      EnableTrigger("hunt_result", true)
+      Send("hunt " .. huntMob)
+   end
+ 
+   function HuntResult(name, line, wildcards)
+      EnableTrigger("hunt_result", false)
+ 
+      local command = CleanExit(wildcards.direction)
+ 
+      if inCombat then 
+         command = "ret " .. command         
+      end
+ 
+      LoadCommand(command)
+   end
+ 
+   function CleanExit(exit)
+      return exit:sub(1, 1):lower()
+   end
+ 
+   function LoadCommand(cmd)     
+      if (autofill == "true" or true) then
+         SetCommandSelection(1,-1)
+         local existing = PasteCommand(cmd)
+         SetCommandSelection(1,-1)
+ 
+         -- If something was already typed into the command bar, reload it
+         if (existing ~= "") then                     
+            PasteCommand(existing)              
+         end   
+      end      
+   end
+]]>
+</script>
+ 
+</muclient>

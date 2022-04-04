@@ -1,0 +1,827 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+	<plugin
+		name="Rauru_Mobber_Miniwindow"
+		author="Rauru"
+		id="22c840004727cceeb20f4fee"
+		language="Lua"
+		purpose="Mobber: Miniwindow."
+		save_state="y"
+		requires="5.06"
+		version="2.45"
+	>
+	</plugin>
+	
+	<aliases>
+		<alias
+			match="^mobber btncolor (?<colour>.+?) (?:win(dow)?|mw|miniwin)$"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.changeBtnColour"
+		>
+		</alias>
+		
+		<alias
+			match="^mobber (?<toggle>hide|show) (?:win(dow)?|mw|miniwin)$"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.hideShowWindow"
+		>
+		</alias>
+		
+		<alias
+			match="^mobber reset (?:win(dow)?|mw|miniwin)$"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.reset"
+		>
+		</alias>
+
+		<!-- Int -->
+		<alias
+			match="^(:?(?:x?cp|gq) (?:c|ch|che|chec|check|\d+)|qq|)$"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.bringToFront"
+		>
+		</alias>
+	</aliases>
+	
+	<triggers>
+		<trigger
+			match="^You cannot take another campaign for .+?$"
+			name="trigger_campaign_text1"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.setWindowMessage"
+		>
+		</trigger>
+		
+		<trigger
+			match="^(?:You may take another campaign\.|You may take a campaign at this level\.|## You may now take another campaign\.)$"
+			name="trigger_campaign_text2"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.setWindowMessage"
+		>
+		</trigger>
+		
+		<trigger
+			match="^You will have to level before you can go on another campaign\.$"
+			name="trigger_campaign_text3"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.setWindowMessage"
+		>
+		</trigger>
+		
+		<trigger
+			match="^Campaign cleared\.$"
+			name="trigger_campaign_text4"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.clear"
+		>
+		</trigger>
+		
+		<trigger
+			match="^You are no longer part of Global Quest # \d+? and will be unable to rejoin\.$"
+			name="trigger_global_quest_text1"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.clear"
+		>
+		</trigger>
+		
+		<trigger
+			match="^Global Quest # \d+? has not yet started\.$"
+			name="trigger_global_quest_text2"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.setWindowMessage"
+		>
+		</trigger>
+		
+		<trigger
+			match="^You have already completed this global quest\.$"
+			name="trigger_global_quest_text3"
+			enabled="y"
+			regexp="y"
+			script="mobberMw.setWindowMessage"
+		>
+		</trigger>
+	</triggers>
+	
+	<script>
+	<![CDATA[
+	
+	----------------------------------
+	-- Custom by me
+	----------------------------------
+
+	custom = {}
+	custom.lastArea = custom.lastArea or "aylor"
+
+	----------------------------------
+	-- Mobber Miniwindow
+	----------------------------------
+	
+	local pluginFolder = string.match(GetPluginInfo(GetPluginID(), 6), "(.*)\\.*$");
+	
+	local path = pluginFolder .. "\\lua\\";
+	package.path = path .. "?.lua;" .. package.path;
+	
+	require("gmcphelper");
+	require("mw_theme_base");
+	require("stringutils");
+	require("var");
+	
+	mobberMw = {};
+	mobberMw.win = "mobberMw_main_" .. GetPluginID();
+	mobberMw.mobberPluginId = "252b8dd0a1b4b0966f590d6f";
+	
+	mobberMw.isHidingButtons = var.isHidingButtons == "true" and true or false;
+	
+	mobberMw.default = {};
+	mobberMw.default.width = 350;
+	mobberMw.default.height = mobberMw.isHidingButtons and 87 or 84;
+
+	---------------------------------------
+	-- Install movewindow
+	---------------------------------------
+	
+	mobberMw.startx = "";
+	mobberMw.starty = "";
+	mobberMw.posx = "";
+	mobberMw.posy = "";
+	
+	mobberMw.lastRefresh = 0;
+	mobberMw.MIN_WIDTH = 350;
+	mobberMw.MAX_WIDTH = 350;
+	mobberMw.MIN_HEIGHT = mobberMw.isHidingButtons and 87 or 84;
+	mobberMw.MAX_HEIGHT = mobberMw.isHidingButtons and 258 or 283;
+	
+	mobberMw.isWindowCollapsed = var.isWindowCollapsed == "true" and true or false;
+	
+	function mobberMw.preprocess()
+		mobberMw.windowInfo = movewindow.install(
+			mobberMw.win, miniwin.pos_center_all, miniwin.create_absolute_location,
+			false, nil,
+			{
+				mouseup = mobberMw.mouseUp, mousedown =  mobberMw.leftClickOnly, 
+				dragmove =  mobberMw.leftClickOnly, dragrelease =  mobberMw.leftClickOnly
+			},
+			nil
+		);
+	end
+	
+	function mobberMw.mouseUp(flags, hotspotId, win)
+		if (bit.band(flags, miniwin.hotspot_got_rh_mouse) ~= 0) then
+			mobberMw.rightClickMenu();
+			return true;
+		end
+
+		if (hotspotId == "btnSelect" or tonumber(hotspotId)) then
+			if (mobberMw.questType == "Global Quest") then
+				Execute("xgq " .. (tonumber(hotspotId) or 1));
+			else
+				Execute("xcp " .. (tonumber(hotspotId) or 1));
+			end
+		elseif (hotspotId == "btnCheck") then
+			if (mobberMw.questType == "Global Quest") then
+				Execute("gq check");
+			else
+				Execute("cp check");
+			end
+		elseif (hotspotId == "btnGo") then
+			Execute("xgo");
+		elseif (hotspotId == "btnNext") then
+			Execute("xnext");
+		elseif (hotspotId == "btnPrev") then
+			Execute("xprev");
+		elseif (hotspotId == "btnKill") then
+			Execute("ak");
+		end
+		
+		return false;
+	end
+	
+	function mobberMw.mouseDown(flags, hotspotId)
+		if (hotspotId == "resize") then
+			mobberMw.startx, mobberMw.starty = WindowInfo(mobberMw.win, 17), WindowInfo(mobberMw.win, 18);
+		end
+	end
+	
+	function mobberMw.mouseDrag(flags, hotspotId)
+		mobberMw.posx, mobberMw.posy = WindowInfo(mobberMw.win, 17), WindowInfo(mobberMw.win, 18);
+		mobberMw.width = mobberMw.width + mobberMw.posx - mobberMw.startx;
+		
+		mobberMw.startx = mobberMw.posx;
+		
+		if (mobberMw.width < mobberMw.MIN_WIDTH) then
+			mobberMw.width = mobberMw.MIN_WIDTH;
+			mobberMw.startx = mobberMw.windowInfo.window_left + mobberMw.width;
+		elseif (mobberMw.width > mobberMw.MAX_WIDTH) then
+			mobberMw.width = mobberMw.MAX_WIDTH;
+			mobberMw.startx = mobberMw.windowInfo.window_left + mobberMw.width;
+		elseif (mobberMw.windowInfo.window_left + mobberMw.width > GetInfo(281)) then
+			mobberMw.width = GetInfo(281) - mobberMw.windowInfo.window_left;
+			mobberMw.startx = GetInfo(281);
+		end
+
+		mobberMw.height = mobberMw.height + mobberMw.posy - mobberMw.starty;
+		mobberMw.starty = mobberMw.posy;
+		
+		if (mobberMw.height < mobberMw.MIN_HEIGHT) then
+			mobberMw.height = mobberMw.MIN_HEIGHT;
+			mobberMw.starty = mobberMw.windowInfo.window_top + mobberMw.height;
+		elseif (mobberMw.height > mobberMw.MAX_HEIGHT) then
+			mobberMw.height = mobberMw.MAX_HEIGHT;
+			mobberMw.starty = mobberMw.windowInfo.window_top + mobberMw.height;
+		elseif (mobberMw.windowInfo.window_top + mobberMw.height > GetInfo(280)) then
+			mobberMw.height = GetInfo(280) - mobberMw.windowInfo.window_top;
+			mobberMw.starty = GetInfo(280);
+		end
+		
+		if (utils.timer() - mobberMw.lastRefresh > 0.0333) then
+			mobberMw.mouseRelease();
+			mobberMw.lastRefresh = utils.timer();
+		end
+	end
+	
+	function mobberMw.mouseRelease(flags, hotspotId)
+		WindowResize(mobberMw.win, mobberMw.width, mobberMw.height, Theme.PRIMARY_BODY);
+		mobberMw.drawContent();
+	end
+	
+	function mobberMw.leftClickOnly(flags, hotspotId, win)
+		if (bit.band(flags, miniwin.hotspot_got_rh_mouse) ~= 0) then
+			return true;
+		end
+		return false;
+	end
+	
+	function mobberMw.rightClickMenu()
+		local menustring = "Collapse/Expand|Toggle Autosize|Hide/Show Buttons|-|Bring To Front|Send To Back|-|^Bot|-|Clear Window|Reset Window";
+		
+		local result = WindowMenu(
+			mobberMw.win,
+			WindowInfo(mobberMw.win, 14),
+			WindowInfo(mobberMw.win, 15),
+			menustring
+		);
+		
+		if (result == "Collapse/Expand") then
+			mobberMw.collapseExpandWindow();
+		elseif (result == "Toggle Autosize") then
+			mobberMw.toggleAutosizing();
+		elseif (result == "Hide/Show Buttons") then
+			mobberMw.hideShowButtons();
+		elseif (result == "Clear Window") then
+			mobberMw.clear();
+		elseif (result == "Bring To Front") then
+			CallPlugin("462b665ecb569efbf261422f","boostMe", mobberMw.win);
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow raised.", "magenta");
+		elseif (result == "Send To Back") then
+			CallPlugin("462b665ecb569efbf261422f","dropMe", mobberMw.win);
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow lowered.", "magenta");
+		elseif (result == "Reset Window") then
+			mobberMw.reset();
+		end
+	end
+
+    -- Int
+	function mobberMw.bringToFront(name, line, wildcards)
+	  CallPlugin("462b665ecb569efbf261422f","boostMe", mobberMw.win);
+	end
+	
+	---------------------
+	-- Create miniwindow 
+	---------------------
+	
+	mobberMw.width = var.width or mobberMw.default.width;
+	mobberMw.height = var.height or mobberMw.default.height;
+	
+	function mobberMw.createWindow()
+		WindowCreate(
+			mobberMw.win,
+			mobberMw.windowInfo.window_left,
+			mobberMw.windowInfo.window_top,
+			mobberMw.width,
+			mobberMw.height,
+			mobberMw.windowInfo.window_mode,  -- ignored
+			mobberMw.windowInfo.window_flags, -- absolute
+			Theme.PRIMARY_BODY
+		);
+		
+		CallPlugin("462b665ecb569efbf261422f","boostMe", mobberMw.win);
+	end
+	
+	------------------------
+	-- Load font and images
+	------------------------
+	
+	mobberMw.font = {};
+	mobberMw.font.id = "mobberMwFont";
+	mobberMw.font.name = "Dina";
+	mobberMw.font.size = 6;
+	mobberMw.font.width = nil;
+	mobberMw.font.height = nil;
+	
+	function mobberMw.loadFont()
+		local fonts = utils.getfontfamilies();
+
+		if (not fonts.Dina) then
+			AddFont(GetInfo (66) .. "\\Dina.fon");
+			fonts = utils.getfontfamilies();
+		end
+	
+		WindowFont(
+			mobberMw.win,
+			mobberMw.font.id,
+			mobberMw.font.name,
+			mobberMw.font.size,
+			false, false, false, false, 0,
+			miniwin.font_family_modern + miniwin.font_pitch_monospaced
+		);
+		
+		mobberMw.font.width = WindowFontInfo(mobberMw.win, mobberMw.font.id, 6);
+		mobberMw.font.height = WindowFontInfo(mobberMw.win, mobberMw.font.id, 1);
+		mobberMw.textTop = (Theme.TITLE_PADDING * 2) + mobberMw.font.height + mobberMw.topPadding;
+		mobberMw.textBottom = mobberMw.textTop + mobberMw.font.height;
+	end
+	
+	function mobberMw.loadImages()
+		WindowLoadImage(mobberMw.win, "bgImg", pluginFolder .. "\\resources\\bg.png");
+	end
+	
+	------------------------
+	-- Draw window
+	------------------------
+	
+	mobberMw.left = nil;
+	mobberMw.top = nil;
+	mobberMw.right = nil;
+	mobberMw.bottom = nil;
+	mobberMw.textTop = nil;
+	mobberMw.textBottom = nil;
+	
+	mobberMw.questType = nil;
+	mobberMw.targets = nil;
+	
+	mobberMw.leftPadding = 5;
+	mobberMw.topPadding = mobberMw.isHidingButtons and 1 or 25;
+	
+	mobberMw.btnColour = var.btnColour or ColourNameToRGB("white");
+	
+	mobberMw.isWindowAutosized = var.isWindowAutosized == "true" and true or false;
+	
+	mobberMw.buttons = {
+		{btnName = "btnKill",   btnTxt = "K"},
+		{btnName = "btnSelect", btnTxt = "S"},
+		{btnName = "btnGo",     btnTxt = "G"},
+		{btnName = "btnNext",   btnTxt = "N"},
+		{btnName = "btnPrev",   btnTxt = "P"},
+	};
+	
+	mobberMw.targetHotspots = {};
+	
+	function mobberMw.drawContent(windowMessage)
+		mobberMw.deleteTargetHotspots();
+		
+		mobberMw.drawWindowOutline();
+		
+		if (not mobberMw.isWindowCollapsed) then
+			mobberMw.drawBgImage();
+			
+			if (mobberMw.targets and next(mobberMw.targets)) then
+				mobberMw.drawQuest();
+				mobberMw.drawWindowOutline(); -- so targets don't overlap border
+			else
+				mobberMw.drawMessage(windowMessage);
+			end
+			
+			if (not mobberMw.isHidingButtons) then
+				mobberMw.drawButtons();
+			end
+			
+			mobberMw.drawResizeTag();
+		end
+		
+		WindowShow(mobberMw.win, true);
+	end
+	
+	function mobberMw.drawWindowOutline()
+		local title = "Mobber - ";
+		title = title .. (mobberMw.questType or "Made by Rauru");
+		
+		mobberMw.left, mobberMw.top, mobberMw.right, mobberMw.bottom = Theme.DressWindow(mobberMw.win, mobberMw.font.id, title, "center");
+	end
+	
+	function mobberMw.drawButtons()
+		local left = mobberMw.leftPadding - mobberMw.left;
+		local top = (Theme.TITLE_PADDING * 2) + mobberMw.font.height + 1;
+		local bottom = mobberMw.textTop - 1;
+		local right = bottom - top + left;
+	
+		for k,v in ipairs(mobberMw.buttons) do
+			mobberMw.drawButton(mobberMw.win, v.btnName, v.btnTxt, left, top, right, bottom);
+			right = right + 24;
+			left = left + 24;
+		end
+		
+		left = mobberMw.right - (right - left);
+		right = mobberMw.right;
+		mobberMw.drawButton(mobberMw.win, "btnCheck", "C", left, top, right, bottom);
+	end
+	
+	function mobberMw.drawButton(win, btnName, btnTxt, left, top, right, bottom)
+		Theme.Draw3DRect(win, left, top, right, bottom, false);
+		WindowAddHotspot(win, btnName, left, top, right, bottom, "", "", "", "", "mobberMw.mouseUp", "", miniwin.cursor_hand, 0);
+		Theme.OutlinedText(
+			win, mobberMw.font.id, btnTxt, 
+			left + ((right - left - mobberMw.font.width) / 2), top + ((bottom - top - mobberMw.font.height) / 2),
+			right, bottom,
+			mobberMw.btnColour, ColourNameToRGB("black"), false, 1
+		);
+	end
+	
+	function mobberMw.drawBgImage()
+		WindowRectOp(mobberMw.win, 2, mobberMw.left, mobberMw.top, mobberMw.right+1, mobberMw.bottom+1, Theme.PRIMARY_BODY);
+		WindowDrawImageAlpha(mobberMw.win, "bgImg", mobberMw.left, mobberMw.top, mobberMw.right, mobberMw.bottom, 0.25, 0, 0);
+	end
+	
+	function mobberMw.warnIfAboutToCompleteGQ()
+		if (#mobberMw.targets == 1 and mobberMw.questType == "Global Quest") then
+		    local target = mobberMw.targets[1];
+		    local amount = target.amount;
+		    -- warning shows for one line only but maybe we need multiple mobs of same
+      		for i = 1, 30 do
+		    	local msg = "THIS IS A GLOBAL QUEST AND THERE'S ONLY ONE TARGET LEFT";
+            	CallPlugin("b555825a4a5700c35fa80780", "storeFromOutside", msg);
+            	print(msg)
+          	end
+		end
+	end
+
+	function mobberMw.drawQuest()
+		local textTop = mobberMw.textTop;
+		local textBottom = mobberMw.textBottom;
+		
+		if (mobberMw.isWindowAutosized) then
+			local listBottom = mobberMw.textBottom + mobberMw.font.height * #mobberMw.targets - 7;
+			mobberMw.height = math.max(listBottom, mobberMw.MIN_HEIGHT);
+			WindowResize(mobberMw.win, mobberMw.width, mobberMw.height, Theme.PRIMARY_BODY);
+		end
+		
+		local currentZone = gmcp("room.info.zone")
+
+        mobberMw.warnIfAboutToCompleteGQ()
+		
+		for i = 1, #mobberMw.targets do
+			local target = mobberMw.targets[i];
+
+			local mobName = toPascalCase(target.name);
+			local zoneName = toPascalCase(target.rooms[1].zone_name);
+			local amount = target.amount > 1 and target.amount or " ";
+			local lookupType = target.lookupType;
+
+			local colour;
+
+			if (target.isDead) then
+				colour = ColourNameToRGB("red");
+			elseif (lookupType == "mobMatchInLvlRange" or lookupType == "roomMatchInLvlRange") then
+
+			    if target.rooms[1].zone_name == currentZone then
+			      local res, index = CallPlugin(mobberMw.mobberPluginId, "campaign.getCurrentTargetIndex");
+			      colour = index == i and ColourNameToRGB("gold") or ColourNameToRGB("limegreen")
+			    else
+				  colour = ColourNameToRGB("paleturquoise");
+				end
+
+			elseif (lookupType == "areaMatch") then
+				colour = ColourNameToRGB("deepskyblue");
+			elseif (lookupType == "mobMatchOutOfLvlRange" or lookupType == "roomMatchOutOfLvlRange") then
+				colour = ColourNameToRGB("darkgray");
+			else
+				colour = ColourNameToRGB("yellow");
+				mobName = zoneName;
+				zoneName = "Missing";
+			end
+			
+			local targetLine = string.format("%-3.3s %-29.28s%s %-13.12s", i .. ".", mobName, amount, "(" .. zoneName .. ")");
+			local targetLineLength = WindowTextWidth(mobberMw.win, mobberMw.font.id, targetLine);
+			
+			Theme.DrawTextBox(mobberMw.win, mobberMw.font.id, mobberMw.leftPadding, textTop, targetLine, false, true, Theme.PRIMARY_BODY, colour);
+			
+			WindowAddHotspot(mobberMw.win, i, mobberMw.leftPadding, textTop, targetLineLength, textBottom, "", "", "", "", "mobberMw.mouseUp", "", miniwin.cursor_hand, 0);
+			
+			table.insert(mobberMw.targetHotspots, i);
+
+			textTop = textBottom;
+			textBottom = textBottom + mobberMw.font.height;
+		end
+	end
+	
+	function mobberMw.drawMessage(windowMessage)
+		if (not windowMessage) then
+			if (mobberMw.questType == "Campaign") then
+				windowMessage = "No campaign active.";
+			elseif (mobberMw.questType == "Global Quest") then
+				windowMessage = "No global quest active.";
+			else
+				windowMessage = "No campaign/global quest active.";
+			end
+		end
+
+		local textLength = WindowTextWidth(mobberMw.win, mobberMw.font.id, windowMessage);
+		WindowText(mobberMw.win, mobberMw.font.id, windowMessage, (mobberMw.width - textLength) / 2, mobberMw.height / 2, 0, 0, Theme.BODY_TEXT);
+	end
+	
+	function mobberMw.drawResizeTag()
+		Theme.AddResizeTag(mobberMw.win, 1, nil, nil, "mobberMw.mouseDown", "mobberMw.mouseDrag", "mobberMw.mouseRelease");
+	end
+	
+	----------------------------------
+	-- Utilities
+	----------------------------------
+	
+	mobberMw.isWindowHidden = false;
+	
+	function mobberMw.setWindowMessage(name, line, wildcards)
+		if (mobberMw.isWindowCollapsed or mobberMw.isWindowHidden) then
+			return;
+		end
+	
+		local windowMessage;
+	
+		if (name == "trigger_campaign_text1") then
+			if (mobberMw.targets and next(mobberMw.targets)) then
+				return;
+			end
+		
+			local hour = tonumber(line:match("^.+ (%d+) hour.+$")) or 0;
+			local minute = tonumber(line:match("^.+ (%d+) minute.+$")) or 0;
+			local second = tonumber(line:match("^.+ (%d+) second.+$")) or 0;
+			
+			AddTimer(
+				"mw_campaign_timer",
+				hour, minute, second, "echo Campaign Timer Deleted.",
+				timer_flag.Enabled + timer_flag.OneShot + timer_flag.Replace + timer_flag.Temporary,
+				""
+			);
+			
+			EnableTimer("mw_campaign_timer_report", true);
+		elseif (name == "trigger_campaign_text2") then
+			windowMessage = "You may take another campaign.";
+		elseif (name == "trigger_campaign_text3") then
+			windowMessage = "Level up for another campaign.";
+		elseif (name == "trigger_global_quest_text2") then
+			windowMessage = "Waiting for global quest to start.";
+		elseif (name == "trigger_global_quest_text3") then
+			windowMessage = "You completed this global quest.";
+		end
+		
+		mobberMw.drawContent(windowMessage);
+	end
+	
+	function mobberMw.reportCampaignTimer()
+		if (IsTimer("mw_campaign_timer")) then
+			if (mobberMw.questType == "Campaign" and not mobberMw.isWindowCollapsed
+				and not mobberMw.isWindowHidden and (not mobberMw.targets or not next(mobberMw.targets))) then
+				
+				local secondsRemaining = GetTimerInfo("mw_campaign_timer", 13);
+				local windowMessage;
+				
+				if (secondsRemaining and math.floor(secondsRemaining) > 0) then
+					windowMessage = "Time Remaining: " .. formatSeconds(math.floor(secondsRemaining));
+				else
+					EnableTimer("mw_campaign_timer_report", false);
+					windowMessage = "You may take another campaign.";
+				end
+				
+				mobberMw.drawContent(windowMessage);
+			else
+				EnableTimer("mw_campaign_timer_report", false);
+				DeleteTimer("mw_campaign_timer");
+			end
+		else
+			EnableTimer("mw_campaign_timer_report", false);
+		end
+	end
+	
+	function mobberMw.deleteTargetHotspots()
+		for k,v in ipairs(mobberMw.targetHotspots) do
+			WindowDeleteHotspot(mobberMw.win, v);
+		end
+		
+		mobberMw.targetHotspots = {};
+	end
+	
+	function mobberMw.changeBtnColour(name, line, wildcards)
+		local colour = ColourNameToRGB(wildcards.colour);
+		local msg;
+		
+		if (colour ~= -1) then
+			msg = "Button color set to: " .. wildcards.colour;
+			mobberMw.btnColour = colour;
+		else
+			msg = "Button color " .. wildcards.colour .. " is invalid.";
+			mobberMw.btnColour = ColourNameToRGB("white");
+		end
+		
+		if (not mobberMw.isWindowHidden) then
+			mobberMw.drawContent("Button color changed.");
+		end
+		
+		CallPlugin(mobberMw.mobberPluginId, "utility.print", msg, "magenta");
+	end
+	
+	function mobberMw.hideShowWindow(name, line, wildcards)
+		if (wildcards.toggle == "show") then
+			mobberMw.isWindowHidden = false;
+			mobberMw.drawContent();
+			WindowShow(mobberMw.win, true);
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow visible.", "magenta");
+		else
+			mobberMw.isWindowHidden = true;
+			WindowShow(mobberMw.win, false);
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow hidden.", "magenta");
+		end
+	end
+	
+	function mobberMw.hideShowButtons()
+		SaveState();
+	
+		if (mobberMw.isHidingButtons) then
+			mobberMw.isHidingButtons = false;
+			mobberMw.default.height = 84;
+			mobberMw.MIN_HEIGHT = 84;
+			mobberMw.MAX_HEIGHT = 283;
+			mobberMw.topPadding = 25;
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow buttons on.", "magenta");
+		else
+			mobberMw.isHidingButtons = true;
+			mobberMw.default.height = 87;
+			mobberMw.MIN_HEIGHT = 87;
+			mobberMw.MAX_HEIGHT = 258;
+			mobberMw.topPadding = 1;
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow buttons off.", "magenta");
+		end
+		
+		if (not mobberMw.isWindowCollapsed) then
+			mobberMw.width = mobberMw.default.width;
+			mobberMw.height = mobberMw.default.height;
+		end
+		
+		WindowDelete(mobberMw.win);
+		
+		mobberMw.preprocess();
+		mobberMw.createWindow();
+		mobberMw.loadFont();
+		mobberMw.loadImages();
+		mobberMw.drawContent();
+	end
+	
+	function mobberMw.collapseExpandWindow()
+		local collapsedHeight = mobberMw.textTop - mobberMw.topPadding;
+		
+		if (mobberMw.isWindowCollapsed) then
+			mobberMw.isWindowCollapsed = false;
+			
+			mobberMw.height = mobberMw.MAX_HEIGHT;
+			
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow expanded.", "magenta");
+		else
+			mobberMw.isWindowCollapsed = true;
+			
+			mobberMw.height = collapsedHeight;
+			
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow collapsed.", "magenta");
+		end
+		
+		mobberMw.createWindow();
+		mobberMw.drawContent();
+	end
+	
+	function mobberMw.toggleAutosizing()
+		if (mobberMw.isWindowAutosized) then
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow autosizing off.", "magenta");
+		else
+			CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow autosizing on.", "magenta");
+		end
+		
+		mobberMw.isWindowAutosized = not mobberMw.isWindowAutosized;
+	end
+	
+	function mobberMw.clear()
+		mobberMw.questType = nil;
+		mobberMw.targets = nil;
+		
+		mobberMw.createWindow();
+		
+		if (not mobberMw.isWindowHidden) then
+			mobberMw.drawContent();
+		end
+		
+		CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow cleared.", "magenta");
+	end
+	
+	function mobberMw.reset()
+		mobberMw.questType = nil;
+		mobberMw.targets = nil;
+		mobberMw.isWindowHidden = false;
+		mobberMw.isWindowAutosized = false;
+		mobberMw.isWindowCollapsed = false;
+
+		mobberMw.width = mobberMw.default.width;
+		mobberMw.height = mobberMw.default.height;
+		
+		mobberMw.windowInfo.window_left = 0;
+		mobberMw.windowInfo.window_top = 0;
+		
+		mobberMw.createWindow();
+		mobberMw.drawContent();
+		
+		CallPlugin(mobberMw.mobberPluginId, "utility.print", "Miniwindow reset.", "magenta");
+	end
+	
+	----------------------------------
+	-- Mushclient Plugin Callbacks
+	----------------------------------
+	
+	function OnPluginInstall()
+		mobberMw.preprocess();
+		mobberMw.createWindow();
+		mobberMw.loadFont();
+		mobberMw.loadImages();
+		mobberMw.drawContent();
+		
+		AddTimer(
+			"mw_campaign_timer_report",
+			0, 0, 1, "",
+			timer_flag.Temporary,
+			"mobberMw.reportCampaignTimer"
+		);
+	end
+	
+	function OnPluginSaveState()
+		movewindow.save_state(mobberMw.win);
+		
+		var.width = mobberMw.width;
+		var.height = mobberMw.height;
+		var.isWindowAutosized = mobberMw.isWindowAutosized;
+		var.isWindowCollapsed = mobberMw.isWindowCollapsed;
+		var.btnColour = mobberMw.btnColour;
+		var.isHidingButtons = mobberMw.isHidingButtons;
+	end
+	
+	function OnPluginEnable()
+		WindowShow(mobberMw.win, true);
+		SaveState();
+	end
+	
+	function OnPluginDisable()
+		WindowShow(mobberMw.win, false);
+		SaveState();
+	end
+	
+	function OnPluginClose()
+		OnPluginDisable();
+		WindowDelete(mobberMw.win);
+	end
+	
+	function OnPluginBroadcast(msg, id, name, text)
+		if (id == mobberMw.mobberPluginId and msg == 420 or msg == 69) then
+			if (mobberMw.isWindowCollapsed or mobberMw.isWindowHidden) then
+				return;
+			end
+			
+			local targets = loadstring("return " .. text)();
+			mobberMw.targets = type(targets) == "table" and targets or nil;
+			
+			if (msg == 420) then
+				mobberMw.questType = "Campaign";
+			else
+				mobberMw.questType = "Global Quest";
+			end
+				
+			mobberMw.drawContent();
+		end
+
+		local gmcpid = "3e7dedbe37e44942dd46d264"
+		if (id == gmcpid and text == "room.info") then
+			local lastArea = custom.lastArea
+			local newArea = gmcp("room.info.zone")
+			custom.lastArea = newArea
+			if lastArea ~= newArea and mobberMw.targets then
+			  mobberMw.drawQuest()
+			end
+		end
+	end
+	
+	]]>
+	</script>
+</muclient>
