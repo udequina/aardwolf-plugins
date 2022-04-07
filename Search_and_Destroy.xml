@@ -9734,19 +9734,19 @@ end
 			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- xcp commands  -->
-	<alias	match="^xcp$"
+	<alias	match="^xx$"
 			script="xcp_noarg"
 			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
-	<alias	match="^xcp (?<index>[0-9]+)$"
+	<alias	match="^xx (?<index>[0-9]+)$"
 			script="xcp_arg"
 			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
-	<alias	match="^xcp mode(?: (?<option>ht|qw|off))?$"
+	<alias	match="^xx mode(?: (?<option>ht|qw|off))?$"
 			script="xcp_set_action_mode"
 			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
-	<alias	match="^xcp q(uest)?$"
+	<alias	match="^xx q(uest)?$"
 		script="xcp_toggle_quest_targeting"
 		enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
@@ -10077,3 +10077,4 @@ end
 			<send>get_changelog(true)</send> </alias>
 </aliases>
 </muclient>
+`
