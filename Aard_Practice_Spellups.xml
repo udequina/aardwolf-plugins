@@ -232,7 +232,7 @@
   >
   </alias>
   <alias
-   match="^prs help$"
+   match="^prs help|prs h$"
    enabled="y"
    regexp="y"
    script="help"
